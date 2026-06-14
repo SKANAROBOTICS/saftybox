@@ -16,7 +16,7 @@ motors during boot, brownout, or a glitch.
 - **Dynamic relay-enable, never a static GPIO level.** Drive the relay/optocoupler from a
   continuous square-wave / charge-pump that exists *only* while firmware runs correctly, AC-coupled
   so a stuck or glitching DC level (high *or* low) lets the relays open. Immunizes against boot/ROM
-  pin states and brownout (see Teensy caveat).
+  pin states and brownout (see Teensy caveat). #T.B. Thoughts: We insure the firmware runs correctly with a dedicated watchdog, I think a dynamic enable is unnecessary 
 - **External voltage supervisor** at a defined threshold forces the safe state below a known
   voltage, independent of the MCU.
 - **Watchdog stage = the cutoff authority.** Prefer a **windowed / question-answer** watchdog (not a
