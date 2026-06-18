@@ -3,8 +3,9 @@
 An independent, secondary safety system for a UUV, independant of **of PX4/vera**. It does one thing:
 
 > **Guarantee that motor power is removed unless a genuine, current authorization to run is present.**
-Relaiability level: Prevent Equipment Loss. Injury during maintenance is out of scope by design (key required even power on). 
-On later veraion this might be extended to more general purpose higher relibility system by updating the design. 
+> 
+>Reliability level: Prevent Equipment Loss. Injury during maintenance is out of scope by design (key required even power on). 
+On later version this might be extended to more general purpose higher reliability system by updating the design. 
 
 These documents capture the **main challenges** of the design — they are deliberately *not* a
 complete specification. The earlier long-form draft is kept at [`archive/DESIGN.md`](archive/DESIGN.md).

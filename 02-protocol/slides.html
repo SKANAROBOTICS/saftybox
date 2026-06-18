@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trusted Heartbeat — Authorization Protocol</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  /* ── Navigation ── */
+  nav {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    background: rgba(15,20,40,0.85);
+    border: 1px solid #2d3a5a;
+    border-radius: 2rem;
+    padding: 0.6rem 1.2rem;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+  }
+  nav a {
+    background: none;
+    border: 1px solid #3a4a70;
+    color: #94a3b8;
+    border-radius: 1rem;
+    padding: 0.4rem 1.2rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  nav a:hover { background: #1e2a4a; color: #e2e8f0; }
+  nav a.dim { opacity: 0.25; pointer-events: none; }
+  #counter { color: #64748b; font-size: 0.8rem; min-width: 4rem; text-align: center; }
+
+  /* ── Slide wrapper ── */
+  #deck {
+    width: 100%;
+    max-width: 960px;
+    padding: 2rem 1rem 8rem;
+  }
+
+  .slide {
+    display: none;
+    min-height: 540px;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 1rem;
+    padding: 3rem 3.5rem;
+    animation: fadeIn 0.2s ease;
+  }
+  .slide:target { display: flex; flex-direction: column; }
+  #slide-1 { display: flex; flex-direction: column; } /* default: show slide 1 */
+  :is(#slide-2,#slide-3,#slide-4,#slide-5,#slide-6,#slide-7,#slide-8,#slide-9,#slide-10,#slide-11,#slide-12):target ~ * { }
+  /* hide slide-1 when any other slide is targeted */
+  body:has(#slide-2:target,#slide-3:target,#slide-4:target,#slide-5:target,#slide-6:target,#slide-7:target,#slide-8:target,#slide-9:target,#slide-10:target,#slide-11:target,#slide-12:target) #slide-1 { display: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Slide types ── */
+  .slide.title {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: linear-gradient(135deg, #0f172a 0%, #131e35 50%, #0f172a 100%);
+    border-color: #253050;
+  }
+
+  /* ── Typography ── */
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #3b82f6;
+    margin-bottom: 1rem;
+  }
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #f1f5f9;
+    margin-bottom: 0.75rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #1e293b;
+  }
+  .subtitle {
+    font-size: 1rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+  }
+  p { line-height: 1.7; color: #94a3b8; margin-bottom: 0.75rem; }
+  strong { color: #e2e8f0; }
+
+  /* ── Components ── */
+  .tag-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .tag.blue   { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563ab; }
+  .tag.green  { background: #14291e; color: #4ade80; border: 1px solid #166534; }
+  .tag.red    { background: #3b1111; color: #f87171; border: 1px solid #7f1d1d; }
+  .tag.amber  { background: #2d1f08; color: #fbbf24; border: 1px solid #78350f; }
+  .tag.purple { background: #1e1240; color: #a78bfa; border: 1px solid #4c1d95; }
+  .tag.gray   { background: #1e2535; color: #94a3b8; border: 1px solid #334155; }
+
+  ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  ul li {
+    padding: 0.55rem 0.8rem 0.55rem 2rem;
+    position: relative;
+    background: #0f1628;
+    border-radius: 0.4rem;
+    color: #94a3b8;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  ul li::before {
+    content: '›';
+    position: absolute;
+    left: 0.7rem;
+    color: #3b82f6;
+    font-weight: 700;
+  }
+  ul.checks li::before { content: '✓'; color: #22c55e; }
+  ul.gaps li::before   { content: '!'; color: #f59e0b; font-weight: 900; }
+  ul.blocks li::before { content: '×'; color: #ef4444; font-weight: 900; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex: 1; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; flex: 1; }
+
+  .card {
+    background: #0f1628;
+    border: 1px solid #1e293b;
+    border-radius: 0.6rem;
+    padding: 1rem 1.2rem;
+  }
+  .card h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+  }
+  .card.blue h3  { color: #60a5fa; }
+  .card.green h3 { color: #4ade80; }
+  .card.amber h3 { color: #fbbf24; }
+  .card.red h3   { color: #f87171; }
+  .card.purple h3 { color: #a78bfa; }
+
+  code, .mono {
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.85em;
+    background: #0a0f1e;
+    border: 1px solid #1e293b;
+    border-radius: 0.3rem;
+    padding: 0.1em 0.35em;
+    color: #7dd3fc;
+  }
+
+  .packet-viz {
+    background: #080d1a;
+    border: 1px solid #1e3a5f;
+    border-radius: 0.6rem;
+    padding: 1.2rem 1.5rem;
+    margin: 1rem 0;
+    font-family: 'Fira Code', monospace;
+  }
+  .packet-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+    font-size: 0.85rem;
+  }
+  .packet-row:last-child { margin-bottom: 0; }
+  .pkt-label { color: #64748b; width: 11rem; flex-shrink: 0; }
+  .pkt-field {
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pkt-field.f1 { background: #1e3356; color: #60a5fa; border: 1px solid #2563ab; }
+  .pkt-field.f2 { background: #1a2e1a; color: #4ade80; border: 1px solid #166534; }
+  .pkt-field.f3 { background: #2d1f08; color: #fbbf24; border: 1px solid #78350f; }
+  .pkt-field.f4 { background: #1e1240; color: #a78bfa; border: 1px solid #4c1d95; }
+  .pkt-bits { color: #475569; font-size: 0.72rem; margin-left: 0.25rem; }
+
+  .highlight-box {
+    background: #0f1f10;
+    border: 1px solid #166534;
+    border-left: 3px solid #22c55e;
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.2rem;
+    margin: 1rem 0;
+    color: #86efac;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .warn-box {
+    background: #1c1208;
+    border: 1px solid #78350f;
+    border-left: 3px solid #f59e0b;
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.2rem;
+    margin: 0.6rem 0;
+    color: #fbbf24;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .danger-box {
+    background: #1c0808;
+    border: 1px solid #7f1d1d;
+    border-left: 3px solid #ef4444;
+    border-radius: 0.5rem;
+    padding: 0.9rem 1.2rem;
+    margin: 0.6rem 0;
+    color: #fca5a5;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .stat-row { display: flex; gap: 1rem; margin: 1rem 0; }
+  .stat-box {
+    flex: 1;
+    background: #0f1628;
+    border: 1px solid #1e293b;
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-family: monospace;
+    display: block;
+  }
+  .stat-label { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-box.blue .stat-num  { color: #60a5fa; }
+  .stat-box.green .stat-num { color: #4ade80; }
+  .stat-box.amber .stat-num { color: #fbbf24; }
+  .stat-box.red .stat-num   { color: #f87171; }
+
+  .flow-steps { display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    background: #0f1628;
+    border: 1px solid #1e293b;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1rem;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: #1e3a5f;
+    border: 1px solid #2563ab;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #60a5fa;
+  }
+  .step-body { font-size: 0.88rem; color: #94a3b8; line-height: 1.5; }
+  .step-body strong { color: #e2e8f0; }
+
+  .scope-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; flex: 1; }
+  .scope-table th {
+    text-align: left;
+    padding: 0.5rem 0.8rem;
+    background: #0a0f1e;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid #1e293b;
+  }
+  .scope-table td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid #111827;
+    color: #94a3b8;
+    vertical-align: top;
+  }
+  .scope-table tr:last-child td { border-bottom: none; }
+  .scope-table td:first-child { color: #e2e8f0; font-weight: 500; }
+  .in-scope  { color: #4ade80 !important; font-size: 0.72rem; font-weight: 700; }
+  .out-scope { color: #f87171 !important; font-size: 0.72rem; font-weight: 700; }
+
+  .numbered-list { counter-reset: item; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+  .numbered-list li {
+    counter-increment: item;
+    padding: 0.5rem 0.8rem 0.5rem 2.5rem;
+    position: relative;
+    background: #0f1628;
+    border: 1px solid #1e293b;
+    border-radius: 0.4rem;
+    font-size: 0.86rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .numbered-list li::before {
+    content: counter(item);
+    position: absolute;
+    left: 0.7rem;
+    top: 0.5rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    background: #1e3a5f;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #60a5fa;
+    text-align: center;
+    line-height: 1.1rem;
+  }
+  .numbered-list li strong { color: #e2e8f0; }
+  .numbered-list li.must { border-color: #7f1d1d; }
+  .numbered-list li.must::before { background: #7f1d1d; color: #fca5a5; }
+
+  .chain {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+  }
+  .chain-node {
+    background: #0f1628;
+    border: 1px solid #1e293b;
+    border-radius: 0.5rem;
+    padding: 0.65rem 1rem;
+    text-align: center;
+    font-size: 0.8rem;
+    min-width: 6rem;
+  }
+  .chain-node.active { border-color: #2563ab; background: #0f1a2e; }
+  .chain-node .cn-label { color: #64748b; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .chain-node .cn-name  { color: #e2e8f0; font-weight: 600; margin-top: 0.15rem; }
+  .chain-node.active .cn-name { color: #60a5fa; }
+  .chain-arrow { color: #334155; font-size: 1.2rem; padding: 0 0.3rem; }
+
+  /* progress bar at top */
+  #progress {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: #1e293b;
+    z-index: 200;
+  }
+  #progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2563ab, #3b82f6);
+    transition: width 0.25s;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"><div id="progress-fill"></div></div>
+
+<div id="deck">
+
+<!-- ─────────────── SLIDE 1: Title ─────────────── -->
+<section class="slide title" id="slide-1">
+  <div class="eyebrow">Pillar 2 of 3 · Trust</div>
+  <h1>Trusted Heartbeat<br>Authorization Protocol</h1>
+  <p class="subtitle">UUV Secondary Safety System · Skana Robotics</p>
+  <div class="tag-row" style="justify-content:center; margin-top:2rem;">
+    <span class="tag blue">Protocol Design</span>
+    <span class="tag amber">Threat Analysis</span>
+    <span class="tag red">Open Items</span>
+  </div>
+  <p style="margin-top:2rem; font-size:0.78rem; color:#334155;">2026-06-14 · grodnay@skanarobotics.com</p>
+</section>
+
+<!-- ─────────────── SLIDE 2: Context ─────────────── -->
+<section class="slide" id="slide-2">
+  <div class="eyebrow">Context</div>
+  <h2>Where This Fits</h2>
+
+  <p>The safety system guarantees motor power is removed unless a genuine, current authorization is present. It is a chain — break any link and motors lose power.</p>
+
+  <div class="chain">
+    <div class="chain-node">
+      <div class="cn-label">Pillar 1</div>
+      <div class="cn-name">HW Safe State</div>
+    </div>
+    <div class="chain-arrow">→</div>
+    <div class="chain-node active">
+      <div class="cn-label">Pillar 2 · <em>This talk</em></div>
+      <div class="cn-name">Trust Protocol</div>
+    </div>
+    <div class="chain-arrow">→</div>
+    <div class="chain-node">
+      <div class="cn-label">Pillar 3</div>
+      <div class="cn-name">Operator UX</div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top: 0.5rem;">
+    <div class="card blue">
+      <h3>Protocol's job</h3>
+      <ul>
+        <li>Continuously prove authorization to run — the <em>lease</em></li>
+        <li>Over an extremely low-bandwidth, high-latency acoustic link</li>
+        <li>Enable only on a <strong>genuine, fresh, intended</strong> heartbeat</li>
+      </ul>
+    </div>
+    <div class="card amber">
+      <h3>Main challenge</h3>
+      <ul>
+        <li>Immune to <strong>accidental triggering</strong> — random noise must not authorize</li>
+        <li>Immune to <strong>record/replay</strong> — old captured response must not re-arm</li>
+        <li>Works over a link that drops, reorders, and delays</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top: 1rem;">
+    Resistance to a <strong>malicious adversary</strong> is explicitly <strong>out of scope</strong>. The threat model is accidental-fault-safe (IEC 61508), not adversary-proof (IEC 62443).
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 3: Packet Format ─────────────── -->
+<section class="slide" id="slide-3">
+  <div class="eyebrow">Design</div>
+  <h2>Packet Format — 3 Bytes Each Direction</h2>
+
+  <p>Minimum acoustic payload. Both directions fit in a single 3-byte frame.</p>
+
+  <div class="packet-viz">
+    <div class="packet-row">
+      <span class="pkt-label">Robot → Home</span>
+      <span class="pkt-field f1">status · 4 bits</span>
+      <span class="pkt-field f2">nonce · 20 bits</span>
+      <span class="pkt-bits">= 24 bits = 3 bytes</span>
+    </div>
+    <div class="packet-row">
+      <span class="pkt-label">Home → Robot</span>
+      <span class="pkt-field f3">n · 4 bits</span>
+      <span class="pkt-field f4">R · 20 bits</span>
+      <span class="pkt-bits">= 24 bits = 3 bytes</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="card blue" style="margin-bottom:0.75rem;">
+        <h3>Challenge (Robot → Home)</h3>
+        <ul>
+          <li><strong>nonce</strong> — 20-bit random, unique within the robot's active buffer</li>
+          <li><strong>status</strong> — 4-bit robot state carried free in the spare nibble</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card purple">
+        <h3>Response (Home → Robot)</h3>
+        <ul>
+          <li><strong>n</strong> — 4-bit lease exponent; grants lease = 2ⁿ seconds</li>
+          <li><strong>R</strong> — <code>truncate₂₀( MAC_key( nonce ‖ n ) )</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box">
+    <strong>n is bound inside the MAC.</strong> A captured short-lease response cannot be presented as a long-lease one — the MAC fails for any other n.
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 4: Robot Flow ─────────────── -->
+<section class="slide" id="slide-4">
+  <div class="eyebrow">Protocol Flow</div>
+  <h2>Robot Side — Challenge & Lease Validation</h2>
+
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="step-num">1</div>
+      <div class="step-body">Every <strong>T seconds</strong>, generate a fresh 20-bit nonce from the CSPRNG. Check it is not already in the buffer (collision prob. K/2²⁰, negligible). Append to circular buffer; displace oldest if full.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">2</div>
+      <div class="step-body">Pack <code>[status:4 | nonce:20]</code> and transmit over the acoustic link.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">3</div>
+      <div class="step-body">On receiving any 3-byte reply <code>(n, R)</code>: prune expired nonces first, then iterate buffer newest-first — compute <code>truncate₂₀(MAC_key(nonce_i ‖ n))</code> and compare to R.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">4</div>
+      <div class="step-body"><strong>First match</strong> → consume nonce_i from buffer, <em>then</em> kick the watchdog, grant lease 2ⁿ seconds. No match across full buffer → discard silently.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">5</div>
+      <div class="step-body">If the watchdog is not kicked before the current lease expires → <strong>relays open</strong>. Fail-safe.</div>
+    </div>
+  </div>
+
+  <div class="warn-box" style="margin-top: 0.75rem;">
+    <strong>Critical ordering:</strong> nonce must be consumed from the buffer <em>before</em> the watchdog kick is issued. A second delivery of the same R cannot kick a second time.
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 5: Home Flow ─────────────── -->
+<section class="slide" id="slide-5">
+  <div class="eyebrow">Protocol Flow</div>
+  <h2>Home Side — Stateless Response</h2>
+
+  <div class="flow-steps" style="max-width: 60%;">
+    <div class="flow-step">
+      <div class="step-num">1</div>
+      <div class="step-body">Receive a 3-byte challenge from the robot.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">2</div>
+      <div class="step-body">Operator's mode selection determines <strong>n</strong> (lease exponent).</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">3</div>
+      <div class="step-body">Compute <code>R = truncate₂₀( MAC_key( nonce ‖ n ) )</code>.</div>
+    </div>
+    <div class="flow-step">
+      <div class="step-num">4</div>
+      <div class="step-body">Transmit <code>[n:4 | R:20]</code> — 3 bytes.</div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top: 1rem;">
+    Home is <strong>stateless</strong> beyond the current received nonce. The robot's circular buffer absorbs all link latency and reordering — home just responds to whatever nonce it receives.
+  </div>
+
+  <div class="card amber" style="margin-top: 1rem;">
+    <h3>Nonce expiry (max_age)</h3>
+    <p style="margin:0; font-size:0.88rem;">Each buffer slot stores <code>(nonce, expires_at)</code>. A nonce is only eligible if <code>current_time &lt; expires_at</code>. This prevents pathologically delayed responses (TCP-tunneled, buffered) from being accepted, regardless of buffer depth.</p>
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 6: Why It Works ─────────────── -->
+<section class="slide" id="slide-6">
+  <div class="eyebrow">Security Properties</div>
+  <h2>Why This Works</h2>
+
+  <div class="stat-row">
+    <div class="stat-box blue">
+      <span class="stat-num">K/2²⁰</span>
+      <span class="stat-label">False-accept prob per frame</span>
+    </div>
+    <div class="stat-box green">
+      <span class="stat-num">1-in-131k</span>
+      <span class="stat-label">For K=8 (24-bit MAC)</span>
+    </div>
+    <div class="stat-box amber">
+      <span class="stat-num">2ⁿ sec</span>
+      <span class="stat-label">Lease, HW-capped</span>
+    </div>
+  </div>
+
+  <ul class="checks" style="margin-top: 1rem;">
+    <li><strong>Replay immunity</strong> — nonce changes every T seconds; consumed-on-match means any captured (n, R) is useless once the nonce is gone.</li>
+    <li><strong>Buffer uniqueness</strong> — pre-send uniqueness check ensures all K active nonces are distinct, eliminating birthday collisions by construction.</li>
+    <li><strong>Lease authentication</strong> — n is bound inside the MAC; a short-lease capture cannot be presented as a long lease.</li>
+    <li><strong>Wrong-key rejection</strong> — a unit without the correct key cannot produce a valid R.</li>
+    <li><strong>Unauthenticated revoke</strong> — stop/revoke carries no MAC by design; it can only drive toward OFF (always safe). Do not add auth to the revoke path.</li>
+    <li><strong>Fail-safe</strong> — operator stops, link drops, firmware hangs, power sags → lease expires → relays open.</li>
+  </ul>
+</section>
+
+<!-- ─────────────── SLIDE 7: Entropy Source ─────────────── -->
+<section class="slide" id="slide-7">
+  <div class="eyebrow">Implementation</div>
+  <h2>Entropy Source (Resolved)</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="card blue">
+        <h3>Prototype — Teensy 4.x / i.MX RT1062</h3>
+        <ul style="font-size:0.85rem;">
+          <li>Hardware TRNG: FIPS 140-2 tested, free-running ring oscillators</li>
+          <li>Access via <code>TRNG_ENT0–ENT15</code>; poll <code>TRNG_MCTL_ENT_VAL</code></li>
+        </ul>
+      </div>
+      <div class="card green" style="margin-top:0.75rem;">
+        <h3>Production MCU Criteria</h3>
+        <ul style="font-size:0.85rem;">
+          <li>Hardware TRNG is a <strong>hard selection criterion</strong></li>
+          <li>Standard on STM32 F4/L4/H7/U5, Nordic nRF52/53, NXP i.MX RT</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card purple">
+        <h3>Boot Pattern (both)</h3>
+        <div class="flow-steps" style="gap:0.4rem;">
+          <div class="flow-step" style="padding: 0.5rem 0.75rem;">
+            <div class="step-num">1</div>
+            <div class="step-body" style="font-size:0.82rem;">Block until TRNG ready flag set (&lt;10 ms)</div>
+          </div>
+          <div class="flow-step" style="padding: 0.5rem 0.75rem;">
+            <div class="step-num">2</div>
+            <div class="step-body" style="font-size:0.82rem;">Collect 32 bytes; seed ChaCha20 or AES-CTR-DRBG CSPRNG; clear TRNG output from RAM</div>
+          </div>
+          <div class="flow-step" style="padding: 0.5rem 0.75rem;">
+            <div class="step-num">3</div>
+            <div class="step-body" style="font-size:0.82rem;">Generate all nonces from CSPRNG; reseed from TRNG every ~1 hour on long missions</div>
+          </div>
+          <div class="flow-step" style="padding: 0.5rem 0.75rem;">
+            <div class="step-num">4</div>
+            <div class="step-body" style="font-size:0.82rem;">Hard reset: block nonce generation until TRNG ready + reseeded. <strong>Never seed from a fixed value.</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 8: Threat Scope ─────────────── -->
+<section class="slide" id="slide-8">
+  <div class="eyebrow">Threat Analysis</div>
+  <h2>Two Threat Models — One Boundary</h2>
+
+  <div class="two-col" style="flex:1;">
+    <div>
+      <div class="card green">
+        <h3>In Scope — Accidental Fault (IEC 61508)</h3>
+        <p style="font-size:0.85rem; margin-bottom:0.75rem; color:#86efac;">No intelligent adversary. Threats from entropy, physics, firmware bugs, channel noise, power failures.</p>
+        <ul style="font-size:0.83rem; gap:0.4rem;">
+          <li>Random-frame false acceptance</li>
+          <li>Accidental replay (multipath, ARQ retransmit)</li>
+          <li>Nonce entropy failure (stuck RNG, bias)</li>
+          <li>Buffer window / latency mismatch</li>
+          <li>Firmware hang → watchdog starvation</li>
+          <li>Key corruption in flash</li>
+          <li>Cross-n accidental collision</li>
+          <li>Post-reset buffer state</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card red">
+        <h3>Out of Scope — Adversarial (IEC 62443)</h3>
+        <p style="font-size:0.85rem; margin-bottom:0.75rem; color:#fca5a5;">Intelligent, motivated attacker. Correctly excluded. Documented in Safety Case.</p>
+        <ul class="blocks" style="font-size:0.83rem; gap:0.4rem;">
+          <li>Key extraction (JTAG, side-channel)</li>
+          <li>Man-in-the-middle attack</li>
+          <li>Deliberate timed replay</li>
+          <li>Brute-force forgery (16M crafted frames)</li>
+          <li>Deliberate acoustic jamming</li>
+          <li>Multi-UUV cross-routing (deliberate)</li>
+          <li>Side-channel on MAC computation</li>
+          <li>Supply-chain key injection</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    <strong>24-bit MAC adequacy:</strong> Cryptographically weak against an adversary (NIST SP 800-224 min is 32 bits). For the accidental-fault scope, the question is only: what is the probability that a randomly corrupted acoustic frame passes? These are entirely different calculations.
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 9: Key Gaps ─────────────── -->
+<section class="slide" id="slide-9">
+  <div class="eyebrow">Threat Analysis · Findings</div>
+  <h2>Key Gaps Identified</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="card red" style="margin-bottom:0.75rem;">
+        <h3>False-Accept Rate — Not Closed</h3>
+        <p style="font-size:0.83rem; color:#fca5a5; margin:0;">The 1-in-131k figure is <em>per frame</em>, not per hour. The safety-case quantity is:</p>
+        <div class="mono" style="display:block; margin:0.5rem 0; font-size:0.8rem; background:#1c0808; padding:0.4rem 0.6rem; border-radius:0.3rem; color:#fca5a5;">P(false/hr) = F_frames/hr × K×16 / 2²⁴</div>
+        <p style="font-size:0.83rem; color:#fca5a5; margin:0;">At F=3,600 frames/hr → <strong>one false accept every 36 hours</strong>. Must be closed against integrity target before deployment.</p>
+      </div>
+      <div class="card amber">
+        <h3>Nonce Width Too Narrow</h3>
+        <p style="font-size:0.83rem; color:#fbbf24; margin:0;">Current spec is 20-bit nonce. Birthday collision in buffer of K=8:</p>
+        <ul style="font-size:0.8rem; gap:0.3rem; margin-top:0.4rem;">
+          <li>W=20 bits: ~1-in-37k collision — marginal</li>
+          <li><strong>W=32 bits minimum required</strong></li>
+          <li>Wider nonce needs 4-byte packet (currently 3-byte)</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card amber" style="margin-bottom:0.75rem;">
+        <h3>Modem Dedup Responsibility — Unassigned</h3>
+        <p style="font-size:0.83rem; color:#fbbf24; margin:0;">Anti-replay works only if the modem delivers each physical burst at most once at the application layer. If modem firmware performs link-layer ARQ and surfaces two deliveries, dedup must happen below the comparison loop. <strong>Ownership not assigned.</strong></p>
+      </div>
+      <div class="card amber">
+        <h3>Archive MAC Width Conflict</h3>
+        <p style="font-size:0.83rem; color:#fbbf24; margin:0;"><code>archive/DESIGN.md</code> specifies a 2-byte (16-bit) MAC; current spec is 3-byte (24-bit). For K=8, a 16-bit MAC gives <strong>~1-in-512 odds per frame — unacceptable</strong>. Archive must be formally marked superseded.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 10: Must-Resolve ─────────────── -->
+<section class="slide" id="slide-10">
+  <div class="eyebrow">Threat Analysis · Action Items</div>
+  <h2>Must Resolve Before Implementation</h2>
+
+  <ol class="numbered-list">
+    <li class="must"><strong>Nonce width W</strong> — minimum W=32 bits (4 bytes). Current 20-bit spec is insufficient for birthday-collision resistance. Cannot remain TBD.</li>
+    <li class="must"><strong>Entropy source</strong> — hardware RNG qualification or qualified CSPRNG with specified seeding after every power cycle. Replay immunity is not formally established without this.</li>
+    <li class="must"><strong>Per-hour false-accept budget</strong> — requires measured or bounded acoustic spurious frame rate. Close against the integrity target; upgrade to 32-bit R if F &gt; ~0.1 frames/sec.</li>
+    <li class="must"><strong>Hardware lease ceiling</strong> — personality plug max n value must be defined and enforced in hardware before deployment.</li>
+    <li class="must"><strong>Archive DESIGN.md</strong> — formally mark as superseded to prevent implementation confusion over the 2-byte vs. 3-byte MAC discrepancy.</li>
+    <li><strong>Revoke path</strong> — document unauthenticated revoke as an intentional architectural constraint, not an omission. Future maintainers must not add auth to this path.</li>
+    <li><strong>Consume-then-kick ordering</strong> — specify as atomic in firmware requirements. Kick before consume allows a second delivery of the same R to re-arm.</li>
+    <li><strong>Modem deduplication</strong> — assign responsibility (modem layer vs. application layer) explicitly.</li>
+    <li><strong>Post-reset buffer state</strong> — buffer must be cleared on every reset path; behavior documented in the state machine.</li>
+    <li><strong>Buffer-full eviction</strong> — document silent displacement as expected behavior, not an error condition that could stop nonce generation.</li>
+  </ol>
+</section>
+
+<!-- ─────────────── SLIDE 11: Residual Risk ─────────────── -->
+<section class="slide" id="slide-11">
+  <div class="eyebrow">Threat Analysis · Risk Register</div>
+  <h2>New Items for the Residual-Risk Register</h2>
+
+  <table class="scope-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Fault</th>
+        <th>Effect</th>
+        <th>Mitigation</th>
+        <th>Gap</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>7</td>
+        <td>Per-hour false-accept rate (acoustic noise × K×16/2²⁴)</td>
+        <td>Accidental motor enable</td>
+        <td>24-bit MAC; HW lease ceiling</td>
+        <td><span class="out-scope">Budget not computed</span></td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td>Nonce entropy source failure (stuck RNG, cold-boot seed)</td>
+        <td>Nonce reuse; replay immunity lost</td>
+        <td>HW RNG qualification</td>
+        <td><span class="out-scope">Entropy source unspecified</span></td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td>Key corruption in flash (bit-rot, incomplete write)</td>
+        <td>Permanent denial of authorization</td>
+        <td>Fail-safe: relays open</td>
+        <td><span class="out-scope">No boot-time KAT; no redundant storage</span></td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>Cross-n accidental collision (≈9×10⁻⁷ per nonce)</td>
+        <td>Robot grants wrong lease duration</td>
+        <td>HW lease ceiling bounds max damage</td>
+        <td><span class="out-scope">Not quantified; ceiling undefined</span></td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td>Safe-state at depth (motors-off → uncontrolled sink)</td>
+        <td>Vehicle loss or collision</td>
+        <td>Mission-phase analysis; drop-weight</td>
+        <td><span class="out-scope">No resolution in hazard analysis</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn-box" style="margin-top: 1rem;">
+    Items 7–10 are new protocol-level additions. Item 11 is a system-level gap previously listed without resolution — must be addressed in the Safety Case.
+  </div>
+</section>
+
+<!-- ─────────────── SLIDE 12: Summary ─────────────── -->
+<section class="slide" id="slide-12">
+  <div class="eyebrow">Summary</div>
+  <h2>Where We Stand</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="card green">
+        <h3>What's solid</h3>
+        <ul class="checks" style="font-size:0.85rem;">
+          <li>Core challenge-response architecture is sound</li>
+          <li>Consume-on-match anti-replay is correct (IPsec pattern)</li>
+          <li>Home stateless design eliminates sync faults</li>
+          <li>Unauthenticated revoke is intentional and safe</li>
+          <li>Entropy source resolved for prototype MCU</li>
+          <li>n bound inside MAC prevents lease substitution</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="card red">
+        <h3>Blockers before implementation</h3>
+        <ul class="gaps" style="font-size:0.85rem;">
+          <li><strong>Nonce width</strong> — must be 32 bits minimum</li>
+          <li><strong>Entropy source</strong> — must be formally qualified</li>
+          <li><strong>False-accept budget</strong> — must be closed per hour against integrity target</li>
+          <li><strong>HW lease ceiling</strong> — personality plug max n must be defined</li>
+          <li><strong>Archive conflict</strong> — 16-bit vs 24-bit MAC must be resolved</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top: 1rem;">
+    The protocol design is architecturally correct for the accidental-fault scope. The five blockers above are parameter and documentation gaps, not fundamental design flaws. Clear them and implementation can begin.
+  </div>
+</section>
+
+</div><!-- #deck -->
+
+<nav id="nav">
+  <a id="prev-btn" href="#slide-1" class="dim">← Prev</a>
+  <span id="counter">1 / 12</span>
+  <a id="next-btn" href="#slide-2">Next →</a>
+</nav>
+
+<script>
+  const TOTAL = 12;
+
+  function currentSlide() {
+    const h = location.hash.match(/^#slide-(\d+)$/);
+    return h ? parseInt(h[1]) : 1;
+  }
+
+  function update() {
+    const n = currentSlide();
+    document.getElementById('counter').textContent = n + ' / ' + TOTAL;
+    document.getElementById('progress-fill').style.width = ((n - 1) / (TOTAL - 1) * 100) + '%';
+    const prev = document.getElementById('prev-btn');
+    const next = document.getElementById('next-btn');
+    prev.href = '#slide-' + Math.max(1, n - 1);
+    next.href = '#slide-' + Math.min(TOTAL, n + 1);
+    prev.className = n === 1     ? 'dim' : '';
+    next.className = n === TOTAL ? 'dim' : '';
+    window.scrollTo(0, 0);
+  }
+
+  window.addEventListener('hashchange', update);
+  update();
+
+  document.addEventListener('keydown', function(e) {
+    const n = currentSlide();
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault();
+      if (n < TOTAL) location.hash = '#slide-' + (n + 1);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (n > 1) location.hash = '#slide-' + (n - 1);
+    }
+  });
+</script>
+</body>
+</html>
