@@ -31,9 +31,7 @@ static bool blink_on(uint32_t now_ms, uint32_t period_ms = 500) {
     return (now_ms % period_ms) < (period_ms / 2);
 }
 
-// ── LINK staleness thresholds ─────────────────────────────────────────────────
-static constexpr uint32_t LINK_FRESH_MS = T_CHALLENGE_MS;
-static constexpr uint32_t LINK_STALE_MS = T_CHALLENGE_MS * 3;
+// LINK_FRESH/STALE thresholds removed — LINK LED is now binary from HAL::linkLive()
 
 // ── Panel constants ───────────────────────────────────────────────────────────
 static constexpr float PW       = 800.f;
@@ -77,19 +75,17 @@ void Panel::_drawLeds(HomeNode& node, uint32_t now_ms, float cx, float cy)
     const float gap = 165.f;
     float xs[5] = { cx-2*gap, cx-gap, cx, cx+gap, cx+2*gap };
 
-    auto s       = node.status();
-    uint32_t age = now_ms - s.lastRxMs;
+    auto s = node.status();
 
     // POWER
     draw_led(dl, xs[0], cy, r, COL_GREEN, _powerOn, false, now_ms, "POWER");
 
-    // LINK
-    bool link_stale = (age >= LINK_FRESH_MS) && (age < LINK_STALE_MS);
-    bool link_dead  = (age >= LINK_STALE_MS);
-    draw_led(dl, xs[1], cy, r, COL_BLUE, !link_dead, link_stale, now_ms, "LINK");
+    // LINK: physical/network layer — HAL reports whether link to platform is up
+    bool link_up = node.linkLive();
+    draw_led(dl, xs[1], cy, r, COL_BLUE, link_up, false, now_ms, "LINK");
 
-    // ROBOT: driven by echoedN vs lastGrantedN
-    bool   robot_stale = link_stale || link_dead;
+    // ROBOT: driven by echoedN vs lastGrantedN; blinks when link is down
+    bool   robot_stale = !link_up;
     bool   robot_on    = (s.lastRxMs > 0);
     ImVec4 robot_col   = COL_DIM;
     if (robot_on) {

@@ -11,8 +11,13 @@ public:
     uint32_t nowMs()                              override;
     void     sendPacket(const uint8_t* buf,
                         size_t len)               override;
+    bool     linkLive()                           override;
 
 private:
     int         _sock;
     sockaddr_in _platformAddr;
+
+    // Cached routing check — re-evaluated at most once per second
+    bool        _linkUp      = false;
+    uint32_t    _linkCheckMs = 0;
 };

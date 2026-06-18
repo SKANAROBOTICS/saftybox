@@ -11,10 +11,12 @@ static const uint8_t KEY[MAC_KEY_LEN] = {
 };
 
 struct MockHomeHAL : public HomeHAL {
-    uint32_t now_ms = 0;
+    uint32_t now_ms  = 0;
+    bool     link_up = true;
     std::vector<std::vector<uint8_t>> sent;
 
-    uint32_t nowMs() override { return now_ms; }
+    uint32_t nowMs()     override { return now_ms; }
+    bool     linkLive()  override { return link_up; }
     void sendPacket(const uint8_t* b, size_t n) override {
         sent.push_back(std::vector<uint8_t>(b, b + n));
     }

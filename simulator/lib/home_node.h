@@ -32,9 +32,10 @@ public:
     void mushroom();            // UN-ARM — force SAFE, suppress further responses
 
     // ── State queries ─────────────────────────────────────────────────────────
-    HomeMode       mode()   const { return _mode; }
-    uint8_t        n()      const { return _n; }
-    HomeStatus     status() const { return _status; }
+    HomeMode       mode()     const { return _mode; }
+    uint8_t        n()        const { return _n; }
+    HomeStatus     status()   const { return _status; }
+    bool           linkLive()       { return _hal.linkLive(); }  // delegates to HAL
 
 private:
     static constexpr uint32_t LINK_TIMEOUT_MS = 2000;

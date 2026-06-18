@@ -21,4 +21,15 @@ public:
     // Destination is configured at construction time.
     // Arduino: udp.writeTo(buf, len, platformIp, platformPort)
     virtual void sendPacket(const uint8_t* buf, size_t len) = 0;
+
+    // ── Link status ───────────────────────────────────────────────────────────
+    // Returns true when the physical/network link to the platform is up.
+    //
+    // Real home unit (Teensy + Ethernet):
+    //   return Ethernet.linkStatus() == LinkON;  // QNEthernet / NativeEthernet
+    //   The front-panel LINK LED is also wired directly from the Ethernet PHY
+    //   LINK/ACT pin → resistor → LED (hardware-driven activity blink, no firmware).
+    //
+    // Simulator: checks whether a route exists to the platform IP (no traffic sent).
+    virtual bool linkLive() = 0;
 };
