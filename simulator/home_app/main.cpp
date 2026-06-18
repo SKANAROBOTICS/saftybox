@@ -95,7 +95,17 @@ int main(int argc, char* argv[])
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;   // no imgui.ini clutter
-    io.Fonts->AddFontFromFileTTF("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 15.f);
+    // Load a font with a wider glyph range so em-dashes and box-drawing render
+    static const ImWchar glyph_ranges[] = { 0x0020, 0x00FF, 0x2013, 0x2014, 0 };
+    const char* font_paths[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        nullptr
+    };
+    for (int i = 0; font_paths[i]; i++) {
+        if (io.Fonts->AddFontFromFileTTF(font_paths[i], 15.f, nullptr, glyph_ranges))
+            break;
+    }
     if (io.Fonts->Fonts.empty())
         io.Fonts->AddFontDefault();
 
@@ -126,7 +136,8 @@ int main(int argc, char* argv[])
 
         {
             std::lock_guard<std::mutex> lk(g_mutex);
-            panel.render(node, now_ms());
+            // Use hal.nowMs() so age = now - lastRxMs uses the same epoch
+            panel.render(node, hal.nowMs());
         }
 
         ImGui::Render();

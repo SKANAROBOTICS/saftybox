@@ -55,6 +55,8 @@ static void draw_led(ImDrawList* dl, float cx, float cy, float r,
     bool visible = on && (!blink || blink_on(now_ms));
     ImU32 col    = visible ? C(color) : C(COL_DIM);
 
+    // Always draw a subtle housing ring so off LEDs are visible as dark circles
+    dl->AddCircle(V(cx, cy), r + 2.f, Ca(COL_METAL, 0.15f), 32, 1.f);
     dl->AddCircleFilled(V(cx, cy), r, col);
     if (visible) {
         dl->AddCircleFilled(V(cx - r*0.3f, cy - r*0.3f), r*0.35f,
@@ -89,13 +91,17 @@ void Panel::_drawLeds(HomeNode& node, uint32_t now_ms, float cx, float cy)
     // ROBOT: driven by echoedN vs lastGrantedN
     bool   robot_stale = link_stale || link_dead;
     bool   robot_on    = (s.lastRxMs > 0);
-    ImVec4 robot_col   = COL_RED;
+    ImVec4 robot_col   = COL_DIM;
     if (robot_on) {
-        if      (s.echoedN == 0)               robot_col = COL_RED;
-        else if (s.echoedN >= s.lastGrantedN)   robot_col = COL_GREEN;
-        else                                    robot_col = COL_AMBER;
+        bool never_armed = (s.echoedN == 0 && s.lastGrantedN == 0);
+        if      (never_armed)                  robot_col = COL_DIM;    // idle: dark
+        else if (s.echoedN == 0)               robot_col = COL_RED;    // stopped after run
+        else if (s.echoedN >= s.lastGrantedN)  robot_col = COL_GREEN;  // in sync
+        else                                   robot_col = COL_AMBER;  // grant in flight
     }
-    draw_led(dl, xs[2], cy, r, robot_col, robot_on, robot_stale, now_ms, "ROBOT");
+    bool robot_never_armed = !robot_on || (s.echoedN == 0 && s.lastGrantedN == 0);
+    bool robot_visible = robot_on && !robot_never_armed;
+    draw_led(dl, xs[2], cy, r, robot_col, robot_visible, robot_stale, now_ms, "ROBOT");
 
     // ARMED: blinks while heartbeating
     bool armed = (node.mode() != HomeMode::SAFE) && _powerOn;
@@ -144,6 +150,8 @@ void Panel::_drawScreen(HomeNode& node, uint32_t /*now_ms*/,
                                       C(COL_AMBER));
     if (s.lastRxMs == 0) {
         ImGui::Text("ROBOT   ---");
+    } else if (s.echoedN == 0 && s.lastGrantedN == 0) {
+        ImGui::Text("ROBOT   n=0  (safe/idle)");   // never armed
     } else {
         const char* sync =
             s.echoedN == 0              ? " x STOPPED"   :
