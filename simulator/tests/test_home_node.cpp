@@ -142,7 +142,7 @@ int main()
         CHECK_EQ(node.n(), 9u);
     }
 
-    SUITE("home_node: mushroom forces SAFE, suppresses further responses");
+    SUITE("home_node: mushroom forces SAFE and sprays n=0 (not normal grants)");
     {
         MockHomeHAL hal;
         HomeNode node(hal, KEY);
@@ -152,7 +152,12 @@ int main()
         uint8_t chal[PACKET_LEN];
         make_challenge(0x77777, 0, chal);
         node.onPacket(chal, PACKET_LEN);
-        CHECK_EQ(hal.sent.size(), 0u);
+        // Spray sends one n=0 revoke, not a normal grant
+        CHECK_EQ(hal.sent.size(), 1u);
+        uint8_t n; uint32_t R;
+        decode_response(hal.sent[0], n, R);
+        CHECK_EQ(n, 0u);    // revoke, not a grant
+        CHECK_EQ(R, 0u);
     }
 
     SUITE("home_node: link-live flag set on receive, cleared after timeout");
@@ -170,14 +175,38 @@ int main()
         CHECK(!node.status().linkLive);
     }
 
-    SUITE("home_node: robot status nibble is echoed in status struct");
+    SUITE("home_node: echoedN carries robot's last accepted n");
     {
         MockHomeHAL hal;
         HomeNode node(hal, KEY);
         uint8_t chal[PACKET_LEN];
-        make_challenge(0x99999, 0x5, chal);     // status nibble = 0x5
+        make_challenge(0x99999, 0x5, chal);     // status nibble = last n = 5
         node.onPacket(chal, PACKET_LEN);
-        CHECK_EQ(node.status().robotStatus, 0x5u);
+        CHECK_EQ(node.status().echoedN, 0x5u);
+    }
+
+    SUITE("home_node: mushroom sprays 4 × n=0 revoke responses");
+    {
+        MockHomeHAL hal;
+        HomeNode node(hal, KEY);
+        node.setMode(HomeMode::AUTO);
+        node.mushroom();
+        uint8_t chal[PACKET_LEN];
+        make_challenge(0xAAAAA, 0, chal);
+        // First 4 challenges → n=0 revoke (spray)
+        for (int i = 0; i < 4; i++) {
+            hal.sent.clear();
+            node.onPacket(chal, PACKET_LEN);
+            CHECK_EQ(hal.sent.size(), 1u);
+            uint8_t n; uint32_t R;
+            decode_response(hal.sent[0], n, R);
+            CHECK_EQ(n, 0u);
+            CHECK_EQ(R, 0u);
+        }
+        // 5th challenge → silent (spray exhausted, mode = SAFE)
+        hal.sent.clear();
+        node.onPacket(chal, PACKET_LEN);
+        CHECK_EQ(hal.sent.size(), 0u);
     }
 
     SUITE("home_node: short packet ignored");

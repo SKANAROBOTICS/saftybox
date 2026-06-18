@@ -273,5 +273,59 @@ int main()
         CHECK(platHAL.relay_closed);
     }
 
+    SUITE("integration: mushroom spray reaches platform, relay opens immediately");
+    {
+        IntegPlatHAL platHAL;
+        IntegHomeHAL homeHAL;
+        PlatformNode plat(platHAL, KEY);
+        HomeNode     home(homeHAL, KEY);
+
+        home.setMode(HomeMode::AUTO);
+        drive_to(plat, platHAL, home, homeHAL, PlatformState::ARMED);
+        CHECK_EQ((int)plat.state(), (int)PlatformState::ARMED);
+
+        // Operator presses mushroom — home sprays n=0
+        home.mushroom();
+
+        // Exchange a few packets so the spray reaches platform
+        for (int i = 0; i < 6; i++) {
+            platHAL.now_ms += T_CHALLENGE_MS + 1;
+            homeHAL.now_ms  = platHAL.now_ms;
+            plat.tick();
+            home.tick();
+            exchange(plat, platHAL, home, homeHAL);
+            plat.tick();   // consume pending disarm from n=0
+            if (plat.state() == PlatformState::SAFE) break;
+        }
+        CHECK_EQ((int)plat.state(), (int)PlatformState::SAFE);
+        CHECK(!platHAL.relay_closed);
+    }
+
+    SUITE("integration: statusNibble echoed in challenge is echoedN on home");
+    {
+        IntegPlatHAL platHAL;
+        IntegHomeHAL homeHAL;
+        PlatformNode plat(platHAL, KEY);
+        HomeNode     home(homeHAL, KEY);
+
+        home.setMode(HomeMode::AUTO);
+        drive_to(plat, platHAL, home, homeHAL, PlatformState::ARMED);
+
+        // After arming statusNibble = N_AUTO, but the first post-arm challenge
+        // hasn't been exchanged yet.  Run a few more cycles.
+        for (int i = 0; i < 4; i++) {
+            platHAL.now_ms += T_CHALLENGE_MS + 1;
+            homeHAL.now_ms  = platHAL.now_ms;
+            plat.tick();
+            home.tick();
+            exchange(plat, platHAL, home, homeHAL);
+            plat.tick();
+        }
+
+        CHECK_EQ(plat.statusNibble(), N_AUTO);
+        CHECK_EQ(home.status().echoedN, N_AUTO);
+        CHECK_EQ(home.status().lastGrantedN, N_AUTO);
+    }
+
     RESULTS();
 }

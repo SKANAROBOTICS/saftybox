@@ -269,5 +269,44 @@ int main()
         CHECK(rem > 1400u && rem <= 2000u);
     }
 
+    SUITE("platform_node: statusNibble returns lastN when ARMED, 0 otherwise");
+    {
+        MockPlatformHAL hal;
+        PlatformNode node(hal, KEY);
+        CHECK_EQ(node.statusNibble(), 0u);              // SAFE → 0
+        arm_node(node, hal, 9);
+        CHECK_EQ(node.statusNibble(), 9u);              // ARMED with n=9
+        node.requestDisarm();
+        node.tick();
+        CHECK_EQ(node.statusNibble(), 0u);              // back to SAFE → 0
+    }
+
+    SUITE("platform_node: n=0 unauthenticated revoke — ARMED → SAFE without MAC");
+    {
+        MockPlatformHAL hal;
+        PlatformNode node(hal, KEY);
+        arm_node(node, hal, 3);
+        CHECK_EQ((int)node.state(), (int)PlatformState::ARMED);
+        // Send n=0 with R=0 — no MAC check, immediate revoke
+        uint8_t revoke[PACKET_LEN];
+        packet_encode_response(0, 0, revoke);
+        node.onPacket(revoke, PACKET_LEN);
+        node.tick();
+        CHECK_EQ((int)node.state(), (int)PlatformState::SAFE);
+        CHECK(!node.relayClosed());
+        CHECK(!hal.relay_closed);
+    }
+
+    SUITE("platform_node: n=0 revoke also works from SAFE state");
+    {
+        MockPlatformHAL hal;
+        PlatformNode node(hal, KEY);
+        uint8_t revoke[PACKET_LEN];
+        packet_encode_response(0, 0, revoke);
+        node.onPacket(revoke, PACKET_LEN);
+        node.tick();
+        CHECK_EQ((int)node.state(), (int)PlatformState::SAFE); // already safe, no harm
+    }
+
     RESULTS();
 }

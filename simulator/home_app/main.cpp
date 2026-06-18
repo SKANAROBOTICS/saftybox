@@ -1,29 +1,24 @@
-// Home app entry point — UI stub.
-// Protocol is fully wired; UI (Dear ImGui panel) to be added.
-// To test the protocol end-to-end, this stub drives the home node
-// from the terminal: type 's' (SAFE), 'a' (SINGLE), 'u' (AUTO),
-// '+'/'-' (adjust n).
-
 #include "../lib/home_node.h"
 #include "sim_home_hal.h"
+#include "panel.h"
+#include "../key_file.h"
+#include "vendor/imgui/imgui.h"
+#include "vendor/imgui/backends/imgui_impl_sdl2.h"
+#include "vendor/imgui/backends/imgui_impl_sdlrenderer2.h"
+
+#include <SDL2/SDL.h>
 #include <cstdio>
-#include <cstring>
 #include <cstdlib>
 #include <thread>
 #include <mutex>
 #include <atomic>
-#include <csignal>
-#include <termios.h>
-#include <unistd.h>
+#include <chrono>
 #include <arpa/inet.h>
-
-#include "../key_file.h"
+#include <unistd.h>
 
 static std::mutex        g_mutex;
 static std::atomic<bool> g_running{true};
 static HomeNode*         g_node = nullptr;
-
-static void signal_handler(int) { g_running = false; }
 
 static void udp_rx_thread(int sock)
 {
@@ -40,46 +35,11 @@ static void udp_rx_thread(int sock)
     }
 }
 
-static const char* mode_name(HomeMode m) {
-    switch (m) {
-    case HomeMode::SAFE:   return "SAFE  ";
-    case HomeMode::SINGLE: return "SINGLE";
-    case HomeMode::AUTO:   return "AUTO  ";
-    }
-    return "?";
-}
-
-static void render(const HomeNode& node)
-{
-    auto s = node.status();
-    printf("\033[H\033[J");
-    printf("╔══════════════════════════════════════╗\n");
-    printf("║     UUV SAFETY — HOME APP (stub)     ║\n");
-    printf("╠══════════════════════════════════════╣\n");
-    printf("║  Mode    : %-6s                     ║\n", mode_name(node.mode()));
-    printf("║  n       : %2u  (lease = %u s)          ║\n",
-           node.n(), 1u << node.n());
-    printf("║  Link    : %-4s                       ║\n",
-           s.linkLive ? "\033[32mLIVE\033[0m" : "\033[31mLOST\033[0m");
-    printf("║  Robot   : status=0x%X  last_n=%u       ║\n",
-           s.robotStatus, s.lastGrantedN);
-    printf("╚══════════════════════════════════════╝\n");
-    printf("  Keys: [s]AFE  [a] SINGLE  [u] AUTO  [+/-] n  [m] mushroom\n");
-    fflush(stdout);
-}
-
-static void set_raw_mode(bool enable) {
-    static termios saved;
-    if (enable) {
-        termios t;
-        tcgetattr(STDIN_FILENO, &saved);
-        t = saved;
-        t.c_lflag &= ~(ICANON | ECHO);
-        t.c_cc[VMIN] = 0; t.c_cc[VTIME] = 0;
-        tcsetattr(STDIN_FILENO, TCSANOW, &t);
-    } else {
-        tcsetattr(STDIN_FILENO, TCSANOW, &saved);
-    }
+static uint32_t now_ms() {
+    using namespace std::chrono;
+    static auto epoch = steady_clock::now();
+    return (uint32_t)duration_cast<milliseconds>(
+        steady_clock::now() - epoch).count();
 }
 
 int main(int argc, char* argv[])
@@ -92,9 +52,7 @@ int main(int argc, char* argv[])
     uint8_t KEY[MAC_KEY_LEN];
     if (!key_file_load(key_path, KEY)) return 1;
 
-    signal(SIGINT,  signal_handler);
-    signal(SIGTERM, signal_handler);
-
+    // ── UDP setup ─────────────────────────────────────────────────────────────
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) { perror("socket"); return 1; }
 
@@ -115,33 +73,76 @@ int main(int argc, char* argv[])
     HomeNode   node(hal, KEY);
     g_node = &node;
 
-    printf("Home app: listening on :%u, platform at %s:%u\n",
-           my_port, plat_ip, plat_port);
-
     std::thread rx(udp_rx_thread, sock);
-    set_raw_mode(true);
 
-    while (g_running) {
-        char c = 0;
-        read(STDIN_FILENO, &c, 1);
-        {
-            std::lock_guard<std::mutex> lk(g_mutex);
-            switch (c) {
-            case 's': node.setMode(HomeMode::SAFE);   break;
-            case 'a': node.setMode(HomeMode::SINGLE); break;
-            case 'u': node.setMode(HomeMode::AUTO);   break;
-            case '+': node.setN(node.n() + 1);        break;
-            case '-': node.setN(node.n() - 1);        break;
-            case 'm': node.mushroom();                 break;
-            case 'q': g_running = false;               break;
-            }
-            node.tick();
-        }
-        render(node);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // ── SDL2 + ImGui init ─────────────────────────────────────────────────────
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+        fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
+        return 1;
     }
 
-    set_raw_mode(false);
+    SDL_Window* window = SDL_CreateWindow(
+        "UUV Safety — Home Unit",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        800, 500, SDL_WINDOW_SHOWN);
+    if (!window) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return 1; }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(
+        window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!renderer) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); return 1; }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;   // no imgui.ini clutter
+    io.Fonts->AddFontFromFileTTF("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 15.f);
+    if (io.Fonts->Fonts.empty())
+        io.Fonts->AddFontDefault();
+
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer2_Init(renderer);
+
+    Panel panel;
+
+    // ── Render loop ───────────────────────────────────────────────────────────
+    while (g_running) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT) g_running = false;
+            if (event.type == SDL_KEYDOWN &&
+                event.key.keysym.sym == SDLK_ESCAPE) g_running = false;
+        }
+
+        {
+            std::lock_guard<std::mutex> lk(g_mutex);
+            node.tick();
+        }
+
+        ImGui_ImplSDLRenderer2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        {
+            std::lock_guard<std::mutex> lk(g_mutex);
+            panel.render(node, now_ms());
+        }
+
+        ImGui::Render();
+        SDL_SetRenderDrawColor(renderer, 14, 17, 22, 255);
+        SDL_RenderClear(renderer);
+        ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
+        SDL_RenderPresent(renderer);
+    }
+
+    // ── Cleanup ───────────────────────────────────────────────────────────────
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
     close(sock);
     rx.detach();
     return 0;

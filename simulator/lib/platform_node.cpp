@@ -23,6 +23,13 @@ void PlatformNode::onPacket(const uint8_t* buf, size_t len)
 
     uint8_t n; uint32_t R;
     if (!packet_decode_response(buf, n, R)) return;
+
+    // n=0: unauthenticated revoke — no MAC check; safe-only, cannot be misused to arm
+    if (n == 0) {
+        _pendingDisarm = true;
+        return;
+    }
+
     if (n > _nMax) return;
 
     // prune + consume inside a single call
@@ -168,9 +175,7 @@ uint32_t PlatformNode::leaseRemainingMs(uint32_t now_ms) const
 
 uint8_t PlatformNode::statusNibble() const
 {
-    uint8_t s = 0;
-    if (_relayClosed)                       s |= STATUS_RELAY_CLOSED;
-    if (_state != PlatformState::TRIPPED)   s |= STATUS_BIT_OK;
-    if (_state == PlatformState::TRIPPED)   s |= STATUS_FAULT;
-    return s & 0x0F;
+    // Carries last accepted n (current lease exponent), 0 if no active lease.
+    if (_state == PlatformState::ARMED) return _lastN & 0x0F;
+    return 0;
 }

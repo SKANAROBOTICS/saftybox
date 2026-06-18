@@ -9,8 +9,8 @@ enum class HomeMode : uint8_t {
 };
 
 struct HomeStatus {
-    bool     linkLive;       // received a challenge within LINK_TIMEOUT_MS
-    uint8_t  robotStatus;   // last status nibble received from robot
+    bool     linkLive;      // received a challenge within LINK_TIMEOUT_MS
+    uint8_t  echoedN;       // last n the robot confirmed (status nibble from challenge)
     uint32_t lastRxMs;      // timestamp of last received challenge
     uint8_t  lastGrantedN;  // n value of last response sent
 };
@@ -40,6 +40,7 @@ private:
     static constexpr uint32_t LINK_TIMEOUT_MS = 2000;
 
     void _respondTo(uint32_t nonce);
+    void _sendRevoke();         // sends n=0, R=0 (unauthenticated revoke)
 
     HomeHAL& _hal;
     uint8_t  _key[MAC_KEY_LEN];
@@ -48,4 +49,5 @@ private:
     uint8_t    _n;
     HomeStatus _status;
     bool       _singleFired;    // true after SINGLE has sent its one response
+    uint8_t    _sprayCount;     // remaining n=0 revoke sprays after mushroom
 };

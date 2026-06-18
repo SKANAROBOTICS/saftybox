@@ -30,10 +30,18 @@ target_link_libraries(platform_sim PRIVATE Threads::Threads)
 # ── Key generator ────────────────────────────────────────────────────────────
 add_executable(keygen tools/keygen.cpp)
 
-# ── Home app (terminal stub; replace main.cpp with ImGui app later) ───────────
+# ── Home app — Dear ImGui + SDL2 panel ───────────────────────────────────────
+find_package(SDL2 REQUIRED)
+file(GLOB IMGUI_CORE home_app/vendor/imgui/*.cpp)
 add_executable(home_app
     home_app/main.cpp
+    home_app/panel.cpp
     home_app/sim_home_hal.cpp
+    ${IMGUI_CORE}
+    home_app/vendor/imgui/backends/imgui_impl_sdl2.cpp
+    home_app/vendor/imgui/backends/imgui_impl_sdlrenderer2.cpp
 )
-target_link_libraries(home_app PRIVATE saftybox_lib)
-target_link_libraries(home_app PRIVATE Threads::Threads)
+target_include_directories(home_app PRIVATE
+    home_app/vendor/imgui
+    home_app/vendor/imgui/backends)
+target_link_libraries(home_app PRIVATE saftybox_lib SDL2::SDL2 Threads::Threads)
