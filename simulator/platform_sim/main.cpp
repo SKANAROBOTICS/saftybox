@@ -41,34 +41,54 @@ static void udp_rx_thread(int sock)
 
 static const char* state_name(PlatformState s) {
     switch (s) {
-    case PlatformState::SAFE:    return "SAFE   ";
-    case PlatformState::ARMING:  return "ARMING ";
-    case PlatformState::ARMED:   return "ARMED  ";
+    case PlatformState::SAFE:    return "SAFE";
+    case PlatformState::ARMING:  return "ARMING";
+    case PlatformState::ARMED:   return "ARMED";
     case PlatformState::TRIPPED: return "TRIPPED";
     }
     return "?";
 }
 
+// Box inner width = 38.  Each data row:
+//   "║  " (3) + label %-8s (8) + ": " (2) + value %-25s (25) + "║" (1) = 39 — wrong
+//   need ║ (1) + 38 inner + ║ (1) = 40 visible
+//   "║  " (3) + %-8s (8) + ": " (2) + %-25s (25) + "║" (1) = 39 — still 39
+//   Correct split: prefix=2 spaces, label=8, sep=2, value=26 → 2+8+2+26=38 inner ✓
+// For the ANSI relay line: printf width counts bytes not glyphs, so handle manually.
+
 static void render(const PlatformNode& node, SimPlatformHAL& hal)
 {
-    uint32_t now = hal.nowMs();
-    uint32_t rem = node.leaseRemainingMs(now);
+    uint32_t now    = hal.nowMs();
+    uint32_t rem_ms = node.leaseRemainingMs(now);
+    uint32_t wd_ago = now > hal.simWatchdogKickMs()
+                      ? now - hal.simWatchdogKickMs() : 0u;
 
-    printf("\033[H\033[J");   // clear screen
+    char lease_buf[32], lastn_buf[32], nonce_buf[32], wd_buf[32];
+    snprintf(lease_buf, sizeof(lease_buf), "%u s", rem_ms / 1000);
+    snprintf(lastn_buf, sizeof(lastn_buf), "%u  (2^%u = %u s)",
+             node.lastN(), node.lastN(), 1u << node.lastN());
+    snprintf(nonce_buf, sizeof(nonce_buf), "%u active",  node.nonceCount());
+    snprintf(wd_buf,    sizeof(wd_buf),    "%u ms ago",  wd_ago);
+
+    printf("\033[H\033[J");
     printf("╔══════════════════════════════════════╗\n");
     printf("║    UUV SAFETY — PLATFORM SIMULATOR   ║\n");
     printf("╠══════════════════════════════════════╣\n");
-    printf("║  State   : %-7s                    ║\n", state_name(node.state()));
-    printf("║  Relay   : %-6s                     ║\n",
-           node.relayClosed() ? "\033[32mCLOSED\033[0m" : "\033[31mOPEN  \033[0m");
-    printf("║  Lease   : %6u s remaining          ║\n", rem / 1000);
-    printf("║  Last n  : %u (2^n = %u s)              ║\n",
-           node.lastN(), 1u << node.lastN());
-    printf("║  Nonces  : %u active                   ║\n", node.nonceCount());
-    printf("║  WD kick : %u ms ago                ║\n",
-           now > hal.simWatchdogKickMs() ? now - hal.simWatchdogKickMs() : 0);
+    // Uniform format: ║  {label:-8}: {value:-26}║  (38 inner visible chars)
+    printf("║  %-8s: %-26s║\n", "State",   state_name(node.state()));
+    // Relay: ANSI codes confuse printf's field width — handle padding manually.
+    // Value is always 6 visible chars ("CLOSED" or "OPEN  "); trailing pad = 20.
+    printf("║  %-8s: %s%-6s\033[0m%-20s║\n",
+           "Relay",
+           node.relayClosed() ? "\033[31m" : "\033[32m",
+           node.relayClosed() ? "CLOSED" : "OPEN",
+           "");
+    printf("║  %-8s: %-26s║\n", "Lease",   lease_buf);
+    printf("║  %-8s: %-26s║\n", "Last n",  lastn_buf);
+    printf("║  %-8s: %-26s║\n", "Nonces",  nonce_buf);
+    printf("║  %-8s: %-26s║\n", "WD kick", wd_buf);
     printf("╚══════════════════════════════════════╝\n");
-    printf("  Press Ctrl-C to exit\n");
+    printf("  Ctrl-C to exit\n");
     fflush(stdout);
 }
 

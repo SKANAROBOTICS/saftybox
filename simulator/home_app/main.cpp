@@ -49,6 +49,15 @@ int main(int argc, char* argv[])
     uint16_t    plat_port = (argc > 3) ? (uint16_t)atoi(argv[3]) : PORT_PLATFORM;
     uint16_t    my_port   = (argc > 4) ? (uint16_t)atoi(argv[4]) : PORT_HOME;
 
+    // --scale N (or -s N): integer pixel multiplier; 1 = 800×500, 2 = 1600×1000
+    float ui_scale = 2.f;   // default 2× (1600×1000); override with --scale N
+    for (int i = 1; i < argc - 1; i++) {
+        if (strcmp(argv[i], "--scale") == 0 || strcmp(argv[i], "-s") == 0) {
+            float v = (float)atof(argv[i+1]);
+            if (v >= 1.f) ui_scale = v;
+        }
+    }
+
     uint8_t KEY[MAC_KEY_LEN];
     if (!key_file_load(key_path, KEY)) return 1;
 
@@ -84,7 +93,7 @@ int main(int argc, char* argv[])
     SDL_Window* window = SDL_CreateWindow(
         "UUV Safety — Home Unit",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        800, 500, SDL_WINDOW_SHOWN);
+        (int)(800 * ui_scale), (int)(500 * ui_scale), SDL_WINDOW_SHOWN);
     if (!window) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return 1; }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(
@@ -103,7 +112,7 @@ int main(int argc, char* argv[])
         nullptr
     };
     for (int i = 0; font_paths[i]; i++) {
-        if (io.Fonts->AddFontFromFileTTF(font_paths[i], 15.f, nullptr, glyph_ranges))
+        if (io.Fonts->AddFontFromFileTTF(font_paths[i], 15.f * ui_scale, nullptr, glyph_ranges))
             break;
     }
     if (io.Fonts->Fonts.empty())
@@ -113,7 +122,7 @@ int main(int argc, char* argv[])
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer2_Init(renderer);
 
-    Panel panel;
+    Panel panel(ui_scale);
 
     // ── Render loop ───────────────────────────────────────────────────────────
     while (g_running) {
