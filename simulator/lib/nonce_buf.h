@@ -23,15 +23,13 @@ public:
     bool consume(const uint8_t key[MAC_KEY_LEN], uint8_t n, uint32_t R,
                  uint32_t now_ms);
 
-    // Remove all expired entries.
-    void prune(uint32_t now_ms);
-
     // True if nonce is already present in a valid, non-expired slot.
     bool contains(uint32_t nonce) const;
 
     uint8_t count() const;
 
 private:
+    void prune(uint32_t now_ms);   // called by consume(); removes expired entries
     NonceEntry _buf[NONCE_BUF_K];
     uint8_t    _head;   // next write index (circular)
 };

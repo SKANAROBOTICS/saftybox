@@ -9,14 +9,13 @@ void packet_encode_challenge(uint8_t status, uint32_t nonce,
     out[2] =  nonce       & 0xFF;
 }
 
-bool packet_decode_challenge(const uint8_t in[PACKET_LEN],
+void packet_decode_challenge(const uint8_t in[PACKET_LEN],
                              uint8_t& status_out, uint32_t& nonce_out)
 {
     status_out = (in[0] >> 4) & 0x0F;
     nonce_out  = ((uint32_t)(in[0] & 0x0F) << 16)
                | ((uint32_t) in[1]         <<  8)
                |  (uint32_t) in[2];
-    return true;
 }
 
 // Response: [ n(3:0):4 | R(19:16):4 ] [ R(15:8):8 ] [ R(7:0):8 ]
@@ -28,12 +27,11 @@ void packet_encode_response(uint8_t n, uint32_t R,
     out[2] =  R       & 0xFF;
 }
 
-bool packet_decode_response(const uint8_t in[PACKET_LEN],
+void packet_decode_response(const uint8_t in[PACKET_LEN],
                             uint8_t& n_out, uint32_t& R_out)
 {
     n_out = (in[0] >> 4) & 0x0F;
     R_out = ((uint32_t)(in[0] & 0x0F) << 16)
           | ((uint32_t) in[1]         <<  8)
           |  (uint32_t) in[2];
-    return true;
 }

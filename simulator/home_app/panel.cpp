@@ -20,9 +20,6 @@ static const ImVec4 COL_DARK_RING = {0.078f, 0.094f, 0.122f, 1.f};
 static const ImVec4 COL_MUSH_RED  = {0.878f, 0.149f, 0.102f, 1.f};
 static const ImVec4 COL_SCREEN_BG = {0.039f, 0.122f, 0.082f, 1.f};
 static const ImVec4 COL_SCREEN_FG = {0.267f, 1.000f, 0.584f, 1.f};
-static const ImVec4 COL_SCREEN_DIM= {0.102f, 0.502f, 0.271f, 1.f};
-static const ImVec4 COL_KEY_BODY  = {0.102f, 0.118f, 0.157f, 1.f};
-static const ImVec4 COL_TICK_HI   = {0.373f, 0.831f, 0.627f, 1.f};
 
 static bool blink_on(uint32_t now_ms, uint32_t period_ms = 500) {
     return (now_ms % period_ms) < (period_ms / 2);
@@ -31,10 +28,8 @@ static bool blink_on(uint32_t now_ms, uint32_t period_ms = 500) {
 // Set at the top of render(), read by all helpers so we avoid threading it everywhere.
 static float S = 1.f;
 
-static constexpr float PW       = 800.f;
-static constexpr float PH       = 500.f;
-static constexpr float KS_OUTER = 42.f;
-static constexpr float KS_INNER = 34.f;
+static constexpr float PW = 800.f;
+static constexpr float PH = 500.f;
 
 Panel::Panel(float scale)
     : _mushroomDepressed(true), _powerOn(true),
@@ -95,9 +90,9 @@ void Panel::_drawLeds(HomeNode& node, uint32_t now_ms, float cx, float cy)
     draw_led(dl, xs[2], cy, r, robot_col, robot_flash, false, now_ms, "ROBOT");
 
     // ARMED:
-    //   Green solid  — not releasing any leases (HOLD, no mushroom)
-    //   Green blink  — releasing n=0 (mushroom latched)
-    //   Red solid    — releasing normal grants (SINGLE or AUTO, no mushroom)
+    //   Green solid  — mushroom active (sending n=0 revokes)
+    //   Amber solid  — HOLD, no mushroom (not releasing any leases)
+    //   Red solid    — armed (SINGLE or AUTO, sending grants)
     bool estop = node.mushroomActive();
     bool armed = (node.mode() != HomeMode::HOLD) && _powerOn && !estop;
     ImVec4 armed_col = estop ? COL_GREEN : (armed ? COL_RED : COL_AMBER);
@@ -162,7 +157,7 @@ void Panel::_drawScreen(HomeNode& node, uint32_t now_ms,
     if (s.lastRxMs == 0) {
         ImGui::Text("ROBOT   ---");
     } else if (s.echoedN == 0 && s.lastGrantedN == 0) {
-        ImGui::Text("ROBOT   n=0  (safe/idle)");
+        ImGui::Text("ROBOT   n=0  (hold/idle)");
     } else {
         const char* sync =
             s.echoedN == 0              ? " x STOPPED"   :
@@ -205,15 +200,14 @@ bool Panel::_drawKeyLock(const char* id, float cx, float cy,
 
 // ── Mode key ──────────────────────────────────────────────────────────────────
 
-void Panel::_drawModeKey(HomeNode& node, uint32_t /*now_ms*/, float cx, float cy)
+void Panel::_drawModeKey(HomeNode& node, float cx, float cy)
 {
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
     const float bw  = 65.f * S;   // button width
     const float bh  = 32.f * S;   // button height
     const float gap =  5.f * S;
-    const float tw  = 3.f*bw + 2.f*gap;
-    const float x0  = cx - tw * 0.5f;
+    const float x0  = cx - (3.f*bw + 2.f*gap) * 0.5f;
     const float by  = cy - bh * 0.5f;
 
     struct Btn { const char* label; HomeMode mode; ImVec4 selCol; };
@@ -282,8 +276,7 @@ void Panel::_drawProgramKey(HomeNode& node, float cx, float cy)
     const float bh  = 32.f * S;
     const float dw  = 96.f * S;   // value display width
     const float gap =  5.f * S;
-    const float tw  = 2.f*bw + dw + 2.f*gap;
-    const float x0  = cx - tw * 0.5f;
+    const float x0  = cx - (2.f*bw + dw + 2.f*gap) * 0.5f;
     const float by  = cy - bh * 0.5f;
 
     float down_x = x0;
@@ -452,7 +445,7 @@ void Panel::render(HomeNode& node, uint32_t now_ms)
     _drawLeds      (node, now_ms, pw*0.5f,       78.f*S);
     _drawOnOff     (95.f*S,       210.f*S);
     _drawScreen    (node, now_ms, 290.f*S, 148.f*S, 300.f*S, 138.f*S);
-    _drawModeKey   (node, now_ms, 165.f*S,       380.f*S);
+    _drawModeKey   (node,         165.f*S,       380.f*S);
     _drawMushroom  (node,         pw*0.5f,        382.f*S);
     _drawProgramKey(node,         pw - 165.f*S,  380.f*S);
 

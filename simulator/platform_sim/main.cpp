@@ -49,12 +49,8 @@ static const char* state_name(PlatformState s) {
     return "?";
 }
 
-// Box inner width = 38.  Each data row:
-//   "║  " (3) + label %-8s (8) + ": " (2) + value %-25s (25) + "║" (1) = 39 — wrong
-//   need ║ (1) + 38 inner + ║ (1) = 40 visible
-//   "║  " (3) + %-8s (8) + ": " (2) + %-25s (25) + "║" (1) = 39 — still 39
-//   Correct split: prefix=2 spaces, label=8, sep=2, value=26 → 2+8+2+26=38 inner ✓
-// For the ANSI relay line: printf width counts bytes not glyphs, so handle manually.
+// Box inner width = 38.  Data rows: 2 (indent) + 8 (label) + 2 (": ") + 26 (value) = 38 ✓
+// ANSI relay line handled manually: printf counts bytes, not visible glyphs.
 
 static void render(const PlatformNode& node, SimPlatformHAL& hal)
 {

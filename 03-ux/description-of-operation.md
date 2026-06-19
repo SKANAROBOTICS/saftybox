@@ -21,7 +21,7 @@ mode key to HOLD stops new grants but lets any existing lease expire naturally.
 | ON / OFF | Rocker | Power |
 | MODE KEY | **HOLD** (centre) · **SINGLE** (left) · **AUTO** (right) | Always turnable; key removable only at HOLD |
 | PROGRAM KEY | **DOWN** ÷2 (left) · **KEEP** (centre) · **UP** ×2 (right) | Always turnable; key removable only at KEEP |
-| UN-ARM mushroom | Momentary press | Press: latches; sends stop, cuts motors · Click again to release visual latch |
+| UN-ARM mushroom | Latching press | Press: latches; sends n=0 on every challenge · Click again to release |
 
 **MODE KEY positions:**
 
@@ -32,8 +32,8 @@ mode key to HOLD stops new grants but lets any existing lease expire naturally.
 | AUTO | Grants sent on every challenge; stays latched until key moved to HOLD. |
 
 **PROGRAM KEY**: UP multiplies lease time by 2; DOWN divides by 2. Range n = 1–15
-(2 s → 32 768 s). Changes take effect immediately on the LEASE display. Key position is always
-accepted; the new value applies on the next grant sent.
+(2 s → 32 768 s). Active only when the key lock is **KEY IN** and the mushroom is **latched**.
+Changes take effect immediately on the LEASE display; the new value applies on the next grant sent.
 
 ---
 
@@ -49,8 +49,9 @@ accepted; the new value applies on the next grant sent.
 | ROBOT | Green flash | Challenge received; robot echoes n = 0 (no active lease — safe/stopped) |
 | ROBOT | Red flash | Challenge received; robot echoes n ≥ 1 (holds active lease — running) |
 | ROBOT | Off | No challenge received recently |
-| ARMED | Green solid | Disarmed (HOLD mode); home is not granting leases |
-| ARMED | Red 1 Hz blink | Armed (SINGLE or AUTO); home is actively granting leases |
+| ARMED | Green solid | Mushroom latched — sending n=0 revokes on every challenge |
+| ARMED | Amber solid | HOLD mode — not sending any leases |
+| ARMED | Red solid | Armed (SINGLE or AUTO) — sending grants |
 | FAULT | Amber solid | Robot held a lease then echoed n = 0 unexpectedly (watchdog / trip) |
 
 **ROBOT LED** flashes briefly (≈ 100 ms) on every challenge packet received. The flash colour
@@ -58,9 +59,9 @@ reflects the robot's current lease status: **green** = robot reports no active l
 or stopped); **red** = robot holds an active lease (n > 0, running). Between flashes the LED is
 dark. Absence of flashes for > 3 × T indicates the acoustic/network link is lost.
 
-**ARMED LED** is green solid when disarmed (mode = HOLD). It blinks red at 1 Hz whenever armed
-(mode = SINGLE or AUTO and power is on), providing a continuous warning that lease grants are
-being sent.
+**ARMED LED** shows three solid states: **green** while the mushroom is latched (sending n=0
+revokes on every challenge); **amber** while in HOLD mode with no mushroom (idle, no leases
+sent); **red** while armed (mode = SINGLE or AUTO, grants sent on every challenge).
 
 ### Screen
 
@@ -75,7 +76,7 @@ shown alongside each time value.
 
 | Row | Content | All possible values |
 |---|---|---|
-| LEASE | Run time that will be granted | `MM:SS  n=X` · blinks 5 s while PROGRAM key unlocked |
+| LEASE | Run time that will be granted | `MM:SS  n=X` |
 | REMAINING | Time left on lease (may be slightly less) | `MM:SS  n=X` · `STOPPED` · `------` (no active lease) |
 | ROBOT | Robot's last echoed n | `n=X ✓` confirmed · `n=X ⚠` in flight · `n=0` stopped · `TRIPPED` latch active · `------` no data |
 
@@ -113,7 +114,7 @@ The maximum overestimate is `max_age`. For leases ≥ 64 s (n ≥ 6) this is < 5
 ## State Machine
 
 PENDING and ACTIVE collapse into a single ARMED state — home behaviour is identical in both
-(grants sent on every challenge, ARMED LED red blink). REMAINING display handles the distinction:
+(grants sent on every challenge, ARMED LED red solid). REMAINING display handles the distinction:
 `------` until the robot's first echoed confirmation, then countdown. TRIPPED is kept as a
 separate state because it requires a deliberate acknowledgement (mode key through HOLD) before
 re-arming; without it the operator could accidentally re-arm immediately after an unexpected stop.
@@ -136,10 +137,10 @@ stateDiagram-v2
 
 | State | Sends | ARMED LED | REMAINING |
 |---|---|---|---|
-| DISARMED | Nothing | Green solid | `------` |
-| ARMED | Grant on each challenge | Red blink | `------` until first confirmation, then countdown |
-| TRIPPED | Nothing | Green solid | Counting to zero, then `STOPPED` |
-| Mushroom override (any state) | n=0 on each challenge | Green blink | No change |
+| DISARMED | Nothing | Amber solid | `------` |
+| ARMED | Grant on each challenge | Red solid | `------` until first confirmation, then countdown |
+| TRIPPED | Nothing | Amber solid | Counting to zero, then `STOPPED` |
+| Mushroom override (any state) | n=0 on each challenge | Green solid | No change |
 
 ---
 
@@ -149,7 +150,7 @@ stateDiagram-v2
 
 ```
 Operator: mode → AUTO
-Home:     state = ARMED; ARMED LED → red blink
+Home:     state = ARMED; ARMED LED → red solid
 Robot:    sends challenge (nonce, echoed n=0 initially)
 Home:     computes grant, sends [n:4 | R:20]; REMAINING = 2^n + max_age
 Robot:    accepts grant → relays close → echoes n in next challenge
@@ -157,20 +158,20 @@ Home:     ROBOT LED → red flash (n>0); ROBOT row → n=X ✓
           REMAINING begins countdown
           [each cycle T seconds:]
           receives challenge → sends grant → REMAINING deadline reset
-          ROBOT flashes red (robot is running); ARMED blinks red
+          ROBOT flashes red (robot is running); ARMED solid red
 ```
 
 ### SINGLE mode — held momentary
 
 ```
 Operator: holds mode key at SINGLE
-Home:     state = ARMED; ARMED LED → red blink
+Home:     state = ARMED; ARMED LED → red solid
           [sends grant on every challenge, same as AUTO, while key is held]
 Robot:    sends challenge; receives grant → relays close → echoes n
 Home:     ROBOT → red flash (n>0); ROBOT row → n=X ✓
           REMAINING = 2^n + max_age; counting down; resets each cycle
 Operator: releases SINGLE key → springs back to HOLD
-Home:     mode = HOLD; no stop sent; ARMED LED → green solid
+Home:     mode = HOLD; no stop sent; ARMED LED → amber solid
           Robot holds current lease; relays open when lease expires
 ```
 
@@ -179,13 +180,13 @@ Home:     mode = HOLD; no stop sent; ARMED LED → green solid
 ```
 Operator: presses UN-ARM mushroom
 Home:     sends n=0 on each challenge while held
-          ARMED LED → green solid; REMAINING: no change
+          ARMED LED → green solid (mushroom latched); REMAINING: no change
 Robot:    receives n=0 → relays open (within max_age of receipt)
           next challenge echoes n=0
 Home:     ROBOT → green flash (n=0); ROBOT row → n=0
 Operator: clicks mushroom again to release visual latch
 Home:     resumes sending grants (if mode is SINGLE or AUTO)
-          ARMED LED → red blink; REMAINING resets on next grant
+          ARMED LED → red solid; REMAINING resets on next grant
 ```
 
 ### Remote trip (robot watchdog fires)
@@ -194,7 +195,7 @@ Home:     resumes sending grants (if mode is SINGLE or AUTO)
 Robot:    watchdog fires (lease expired, fault)
           relays open; echoes n=0 in next challenge
 Home:     receives n=0 echo → state = TRIPPED
-          stops sending grants; ARMED LED → green solid
+          stops sending grants; ARMED LED → amber solid (TRIPPED, no mushroom)
           ROBOT → green flash (n=0); ROBOT row → TRIPPED
           REMAINING: keeps counting down to STOPPED
           (in-flight grants may briefly re-arm robot; no new grants follow)
@@ -234,8 +235,9 @@ Operator: mode → HOLD (stops new grants; robot runs out current lease)
 | ROBOT | No challenge received recently | Off |
 | LINK | Route to robot IP exists | Solid blue |
 | LINK | No route to robot IP | Off |
-| ARMED | Disarmed (mode = HOLD) | Solid green |
-| ARMED | Armed (mode = SINGLE or AUTO) | Red 1 Hz blink (500 ms on / 500 ms off) |
+| ARMED | Mushroom latched (sending n=0) | Solid green |
+| ARMED | HOLD mode, no mushroom | Solid amber |
+| ARMED | Armed (mode = SINGLE or AUTO) | Solid red |
 | POWER | Powered | Solid green (static) |
 | FAULT | Robot held lease, then echoed n=0 | Solid amber |
 
@@ -245,7 +247,6 @@ Operator: mode → HOLD (stops new grants; robot runs out current lease)
 // LEASE row
 "  LEASE   %02d:%02d   n=%d"    // MM:SS when < 1h
 "  LEASE %d:%02d:%02d   n=%d"   // H:MM:SS when >= 1h
-// blink LEASE label at 2 Hz for 5 s while PROGRAM key is unlocked
 
 // REMAINING row — normal
 "REMAINING %02d:%02d   n=%d"
@@ -267,8 +268,8 @@ Operator: mode → HOLD (stops new grants; robot runs out current lease)
 state       = DISARMED
 REMAINING   = "------"
 ROBOT row   = "------"
-LEASE       = last value from NV storage (or n=6 / 64 s if no stored value)
-ARMED LED   = green solid (disarmed)
+LEASE       = last value from NV storage (or n=1 / 2 s if no stored value)
+ARMED LED   = green solid (mushroom starts latched)
 ROBOT LED   = off (no challenges received yet)
 LINK LED    = blue if ethernet path to robot IP is up, else off
 POWER LED   = green solid
@@ -298,12 +299,12 @@ loop:
             state = TRIPPED            # unexpected stop — latch, stop sending
 
         if state == ARMED and not mushroom_held():
-            n = selected_n()          # from PROGRAM key (only while mushroom held)
+            n = selected_n()          # operator-programmed lease exponent
             R = truncate20(HMAC_SHA256(key, bytes([nonce >> 12,
                                                    (nonce >> 4) & 0xFF,
                                                    ((nonce & 0xF) << 4) | n])))
             acoustic_tx((n << 20) | R)
-            # ARMED LED: continuous red-blink while state==ARMED
+            # ARMED LED: solid red while state == ARMED and no mushroom
 
             new_deadline = now() + (1 << n) + max_age
             if new_deadline > remaining_deadline:
@@ -313,15 +314,15 @@ loop:
     if mode_key() == HOLD:
         if state == ARMED:
             state = DISARMED        # no n=0 sent; existing lease expires naturally
-        led_armed_green()
+        led_armed_amber()           # solid amber = HOLD, no mushroom
 
     if mushroom_held():
         # selected_n() returns 0 while held → sends n=0 on next challenge
-        led_armed_green_blink()
+        led_armed_green()           # solid green = mushroom latched (n=0)
 
     if mode_key() in {SINGLE, AUTO} and state == DISARMED:
         state = ARMED
-        led_armed_blink_red()
+        led_armed_solid_red()       # solid red = armed
 
     if state == TRIPPED and mode_key_cycled_through_hold():
         state = DISARMED
@@ -391,7 +392,7 @@ same key is flashed to both the home unit and the UUV board. For multi-UUV deplo
 | UN-ARM mushroom | In | Active-low GPIO; internal pull-up |
 | ROBOT LED | Out | RGB LED; R + G channels; PWM for flash timing |
 | LINK LED | Out | Blue channel or separate LED |
-| ARMED LED | Out | Red LED; PWM for blink-off pulse |
+| ARMED LED | Out | RGB LED or 3× discrete (green/amber/red); solid states only |
 | POWER LED | Out | Green LED; static |
 | FAULT LED | Out | Red LED; driven by hardware supervisor too |
 | Screen | Out | I²C or SPI to character/OLED display |

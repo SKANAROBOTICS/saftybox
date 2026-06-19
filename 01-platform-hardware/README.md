@@ -4,7 +4,7 @@
 
 ## Purpose
 Physically deliver or remove **24V relay control power** (≈ upto a couple of amps). The default, power-on, and
-fault state is **OFF**. This is in series to the key shortcut plug. 24V->Key Control Plug->SafteyBox-> key relay -> 48V key bus. 
+fault state is **OFF**. This is in series to the key shortcut plug. 24V->Key Control Plug->SafetyBox-> key relay -> 48V key bus. 
 
 ## Main challenge
 **Converge to motors-off under any single *or latent* fault** — and never momentarily energize the

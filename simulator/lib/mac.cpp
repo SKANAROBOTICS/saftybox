@@ -1,5 +1,4 @@
 #include "mac.h"
-#include <string.h>
 
 // ── SipHash-2-4 ──────────────────────────────────────────────────────────────
 // Reference: Aumasson & Bernstein, "SipHash: a fast short-input PRF" (2012)

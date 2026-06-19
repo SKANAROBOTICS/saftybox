@@ -22,7 +22,7 @@ void PlatformNode::onPacket(const uint8_t* buf, size_t len)
     if (_state != PlatformState::SAFE && _state != PlatformState::ARMED) return;
 
     uint8_t n; uint32_t R;
-    if (!packet_decode_response(buf, n, R)) return;
+    packet_decode_response(buf, n, R);
 
     // n=0: unauthenticated revoke — no MAC check; safe-only, cannot be misused to arm
     if (n == 0) {
@@ -85,7 +85,7 @@ void PlatformNode::_sendChallenge()
     uint8_t  attempts = 0;
     do {
         nonce = _hal.randomU32() & 0x000FFFFF;
-        if (++attempts > 10) return;   // TRNG trouble; skip this interval
+        if (++attempts > 10) return;   // TRNG trouble — skip this challenge interval
     } while (_nonces.contains(nonce));
 
     if (!_nonces.add(nonce, _hal.nowMs(), NONCE_MAX_AGE_MS)) return;
@@ -115,7 +115,7 @@ void PlatformNode::tick()
         if (now >= _nextChallengeMs) _sendChallenge();
         if (_pendingArm) {
             _state = PlatformState::ARMING;
-            // _runArming() will be called next iteration so display can update
+            // _runArming() runs on the next tick() call so the display can update first
         }
         break;
 

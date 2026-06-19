@@ -37,7 +37,7 @@ or a separate acknowledgement channel.
 | `1–15` | Robot's current lease level; lease duration = `2ⁿ` seconds |
 
 **n = 0 as the stop value.** Home emits `n = 0` in the response field as an explicit revoke (e.g.,
-mushroom pressed, mode key at SAFE). This is consistent with the unauthenticated-revoke principle:
+mushroom latched, mode key at HOLD). This is consistent with the unauthenticated-revoke principle:
 a replayed `n = 0` packet can only drive the robot toward OFF, which is always safe. The PROGRAM
 key on the home unit never selects `n = 0`; stop is a separate control action.
 
@@ -82,8 +82,8 @@ probability low.
 
 1. Receive a challenge from the robot.
 2. Operator's mode and the mushroom state determine `n`:
-   - Mushroom held → `n = 0` (stop/revoke)
-   - Mode = SAFE or TRIPPED → do not respond
+   - Mushroom latched → `n = 0` (stop/revoke; sent on every challenge while latched)
+   - Mode = HOLD; or state = TRIPPED → do not respond
    - Mode = SINGLE or AUTO → `n` = operator-selected lease exponent (1–15)
 3. Pack the 3-byte MAC input: `msg = (nonce << 4) | n` as a 24-bit big-endian value.
    Equivalently: `msg[0] = nonce>>12`, `msg[1] = (nonce>>4)&0xFF`, `msg[2] = ((nonce&0xF)<<4)|n`.
@@ -96,7 +96,7 @@ and reordering.
 **Sending n = 0:** a stop/revoke packet uses the same 3-byte format with `n = 0`. Because any
 replayed `n = 0` packet is safe (drives toward OFF), authentication is not required — the robot
 accepts a valid MAC for `n = 0` as a normal grant with a zero-second lease, which immediately
-expires. See [UX description](../03-ux/description-of-operation.md) for when the home emits `n = 0`.
+expires. See [UX description](../03-ux/description-of-operation.md) for when the home emits `n = 0` (mushroom latched or mode = HOLD).
 
 ## Why this works
 

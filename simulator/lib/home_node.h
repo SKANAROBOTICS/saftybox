@@ -9,12 +9,14 @@ enum class HomeMode : uint8_t {
 };
 
 struct HomeStatus {
-    bool     linkLive;      // received a challenge within LINK_TIMEOUT_MS
-    uint8_t  echoedN;       // last n the robot confirmed (status nibble from challenge)
-    uint32_t lastRxMs;      // timestamp of last received challenge
-    uint8_t  lastGrantedN;  // n value of last non-zero response sent (not updated on revoke)
-    uint32_t lastGrantMs;   // timestamp of last non-zero response sent (for REMAINING countdown)
+    uint8_t  echoedN;       // last n echoed by robot in challenge (its current lease exponent; 0=none)
+    uint32_t lastRxMs;      // timestamp of last challenge received (0 = never)
+    uint8_t  lastGrantedN;  // last non-zero n sent in a response (not updated on revoke)
+    uint32_t lastGrantMs;   // timestamp of last non-zero response (for REMAINING countdown)
 };
+// Panel colour interpretation of echoedN vs lastGrantedN:
+//   echoedN == 0            → ROBOT LED green  (robot safe/stopped)
+//   echoedN >  0            → ROBOT LED red    (robot holds active lease)
 
 class HomeNode {
 public:
@@ -41,7 +43,6 @@ public:
     bool           linkLive()            { return _hal.linkLive(); }
 
 private:
-    static constexpr uint32_t LINK_TIMEOUT_MS = 2000;
 
     void _respondTo(uint32_t nonce);
     void _sendRevoke();         // sends n=0, R=0 (unauthenticated revoke)

@@ -1,6 +1,6 @@
 # UUV Secondary Safety System
 
-An independent, secondary safety system for a UUV, independant of **of PX4/vera**. It does one thing:
+An independent, secondary safety system for a UUV, independent of **PX4/Vera**. It does one thing:
 
 > **Guarantee that motor power is removed unless a genuine, current authorization to run is present.**
 > 

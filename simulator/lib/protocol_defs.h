@@ -15,15 +15,11 @@ static constexpr uint8_t  NONCE_BUF_K      = 8;    // circular buffer depth
 // Packet field n is 4 bits → ceiling is 15 (2^15 = 32 768 s ≈ 9 h).
 static constexpr uint8_t N_MIN  = 1;
 static constexpr uint8_t N_MAX  = 15;  // hard ceiling; personality plug may lower
-static constexpr uint8_t N_AUTO = 2;   // AUTO mode: 2^2 = 4 s lease, ~1 s kick
+static constexpr uint8_t N_AUTO = 2;   // AUTO mode: 2^2 = 4 s lease, 500 ms challenge interval
 
 // ── Status nibble (robot → home, free-riding in challenge packet) ─────────────
-// Carries the last n the robot successfully validated (its current lease hold).
-// 0 = no active lease (SAFE / TRIPPED / just revoked).
-// Home uses this to drive the ROBOT LED sync indicator:
-//   echoedN == lastGrantedN → green  (in sync)
-//   echoedN <  lastGrantedN → amber  (grant in flight, acoustic RTT)
-//   echoedN == 0            → red    (stopped / watchdog fired)
+// Carries the last n the robot successfully validated (its current lease exponent).
+// 0 = no active lease (robot stopped, tripped, or revoke received).
 
 // ── MAC ──────────────────────────────────────────────────────────────────────
 static constexpr size_t MAC_KEY_LEN = 16;  // SipHash-2-4 key = 128 bits

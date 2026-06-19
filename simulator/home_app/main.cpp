@@ -12,7 +12,6 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
-#include <chrono>
 #include <arpa/inet.h>
 #include <unistd.h>
 
@@ -28,18 +27,11 @@ static void udp_rx_thread(int sock)
     while (g_running) {
         ssize_t n = recvfrom(sock, buf, sizeof(buf), 0,
                              (sockaddr*)&src, &srclen);
-        if (n == PACKET_LEN && g_node) {
+        if (n == PACKET_LEN) {
             std::lock_guard<std::mutex> lk(g_mutex);
             g_node->onPacket(buf, (size_t)n);
         }
     }
-}
-
-static uint32_t now_ms() {
-    using namespace std::chrono;
-    static auto epoch = steady_clock::now();
-    return (uint32_t)duration_cast<milliseconds>(
-        steady_clock::now() - epoch).count();
 }
 
 int main(int argc, char* argv[])

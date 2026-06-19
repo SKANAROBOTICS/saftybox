@@ -82,13 +82,13 @@
       <text x="285" y="132">LINK</text>
     </g>
     <g>
-      <!-- ROBOT: green = in sync (echoed n matches last grant); amber = grant in flight; red = n=0 stopped; blink = stale -->
+      <!-- ROBOT: green flash = n=0 (robot safe/stopped); red flash = n>0 (robot running) -->
       <circle cx="460" cy="104" r="11" fill="#36d36a"/>
       <circle cx="456" cy="100" r="3.5" fill="#bfffd7" opacity=".8"/>
       <text x="460" y="132">ROBOT</text>
     </g>
     <g>
-      <!-- ARMED = red solid: ready to send leases; blinks on each grant sent; off = disarmed -->
+      <!-- ARMED: green=mushroom latched, amber=HOLD/idle, red=armed (all solid) -->
       <circle cx="635" cy="104" r="11" fill="#ff3b30"/>
       <circle cx="631" cy="100" r="3.5" fill="#ffc9c4" opacity=".8"/>
       <text x="635" y="132">ARMED</text>
@@ -129,11 +129,11 @@
   <text x="115" y="292" text-anchor="middle" fill="#cdd6e0" font-size="12" font-weight="700">ON / OFF</text>
 
   <!-- ═══════════════════════════════════════════════════════════
-       MODE KEY SWITCH   SINGLE(momentary) ← SAFE(key-out) → AUTO(latched)
-       Center: (210, 430).  Key shown at SAFE (12-o'clock = key in pocket).
-       Position angles (std math, y-up): SINGLE=135°, SAFE=90°, AUTO=45°
+       MODE KEY SWITCH   SINGLE(hold) ← HOLD(key-out) → AUTO(latched)
+       Center: (210, 430).  Key shown at HOLD (12-o'clock = key in pocket).
+       Position angles (std math, y-up): SINGLE=135°, HOLD=90°, AUTO=45°
        In SVG coords (y-down):  cos(θ), −sin(θ)
-         SAFE  90°: (0, −1)           → scale to r: (0, −r)
+         HOLD  90°: (0, −1)           → scale to r: (0, −r)
          SINGLE 135°: (−√2/2, −√2/2) → ≈ (−0.707r, −0.707r)
          AUTO  45°:  ( √2/2, −√2/2)  → ≈ ( 0.707r, −0.707r)
        ═══════════════════════════════════════════════════════════ -->
@@ -148,9 +148,9 @@
     <line x1="-24.0" y1="-24.0" x2="-29.7" y2="-29.7" stroke="#8b97a4" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="0"     y1="-34"   x2="0"     y2="-42"   stroke="#5fd0a0" stroke-width="3"   stroke-linecap="round"/>
     <line x1="24.0"  y1="-24.0" x2="29.7"  y2="-29.7" stroke="#8b97a4" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Green dot: key-out allowed at SAFE -->
+    <!-- Green dot: key-out allowed at HOLD -->
     <circle cx="0" cy="-44" r="4" fill="#5fd0a0" stroke="#14181f" stroke-width="1"/>
-    <!-- Key body pointing up (SAFE) -->
+    <!-- Key body pointing up (HOLD) -->
     <ellipse cx="0" cy="-21" rx="6" ry="9" fill="#1a1e28" stroke="#9aa6b4" stroke-width="1.5"/>
     <circle  cx="0" cy="-18" r="3"           fill="none"   stroke="#9aa6b4" stroke-width="1.2"/>
     <rect x="-3" y="-12" width="6" height="16" rx="2" fill="#1a1e28" stroke="#9aa6b4" stroke-width="1.5"/>
@@ -160,7 +160,7 @@
   <!-- Mode key position labels -->
   <text x="148" y="381" text-anchor="middle" fill="#9aa6b2" font-size="11" font-weight="600">SINGLE</text>
   <text x="148" y="394" text-anchor="middle" fill="#6b7480" font-size="9">momentary</text>
-  <text x="210" y="374" text-anchor="middle" fill="#e8edf3" font-size="11" font-weight="700">SAFE</text>
+  <text x="210" y="374" text-anchor="middle" fill="#e8edf3" font-size="11" font-weight="700">HOLD</text>
   <text x="210" y="387" text-anchor="middle" fill="#5fd0a0" font-size="9">key out</text>
   <text x="272" y="381" text-anchor="middle" fill="#9aa6b2" font-size="11" font-weight="600">AUTO</text>
   <text x="272" y="394" text-anchor="middle" fill="#6b7480" font-size="9">latched</text>
@@ -225,7 +225,7 @@
     <h3>Controls</h3>
     <table>
       <tr><td>ON / OFF</td><td>Power</td></tr>
-      <tr><td>MODE — SAFE</td><td>Disarmed</td></tr>
+      <tr><td>MODE — HOLD</td><td>Disarmed</td></tr>
       <tr><td>MODE — SINGLE</td><td>Send one lease</td></tr>
       <tr><td>MODE — AUTO</td><td>Send leases continuously</td></tr>
       <tr><td>PROGRAM UP</td><td>Longer lease (×2)</td></tr>

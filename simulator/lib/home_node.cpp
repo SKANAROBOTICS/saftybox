@@ -17,7 +17,7 @@ void HomeNode::onPacket(const uint8_t* buf, size_t len)
     if (len != PACKET_LEN) return;
 
     uint8_t  echoedN; uint32_t nonce;
-    if (!packet_decode_challenge(buf, echoedN, nonce)) return;
+    packet_decode_challenge(buf, echoedN, nonce);
 
     _status.lastRxMs = _hal.nowMs();
     _status.echoedN  = echoedN;
@@ -34,22 +34,15 @@ void HomeNode::onPacket(const uint8_t* buf, size_t len)
         break;                      // no response
 
     case HomeMode::SINGLE:
-        _respondTo(nonce);          // grant on every challenge; spring-back handled by key/UI
-        break;
-
     case HomeMode::AUTO:
-        _respondTo(nonce);
+        _respondTo(nonce);          // spring-back for SINGLE is handled by the UI/key
         break;
     }
 }
 
 // ── tick (main loop) ─────────────────────────────────────────────────────────
 
-void HomeNode::tick()
-{
-    uint32_t now = _hal.nowMs();
-    _status.linkLive = (now - _status.lastRxMs) < LINK_TIMEOUT_MS;
-}
+void HomeNode::tick() { /* no periodic work currently needed */ }
 
 // ── UI commands ──────────────────────────────────────────────────────────────
 

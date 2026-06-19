@@ -18,7 +18,7 @@ private:
 
     void _drawLeds      (HomeNode& node, uint32_t now_ms, float cx, float cy);
     void _drawScreen    (HomeNode& node, uint32_t now_ms, float x, float y, float w, float h);
-    void _drawModeKey   (HomeNode& node, uint32_t now_ms, float cx, float cy);
+    void _drawModeKey   (HomeNode& node, float cx, float cy);
     void _drawProgramKey(HomeNode& node, float cx, float cy);
     void _drawMushroom  (HomeNode& node, float cx, float cy);
     void _drawOnOff     (float cx, float cy);
