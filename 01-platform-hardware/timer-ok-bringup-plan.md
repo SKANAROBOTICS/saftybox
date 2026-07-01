@@ -2,6 +2,16 @@
 
 > Pillar 1 of 3 · handle **Safe state** · [↑ overview](../README.md) · [← README](README.md)
 
+> **This is the detailed GPT register-level bring-up log for Design A** (Teensy-only) — see
+> [failsafe-design-options.md](failsafe-design-options.md) for how Design A compares to the
+> external-supervisor-chip alternative (Design B), and for the current overall architecture.
+> **Note:** the current recommended approach within Design A has since simplified away from the
+> pure-hardware `OM`-field pin action documented below, toward a plain-GPIO + timer-ISR pattern
+> for both channels (simpler, avoids the IOMUX/`SION` issues found here) — this document is kept
+> as-is because the bugs found and fixed along the way (the false-idle-level issue, the ISR
+> double-fire issue) are directly relevant background, not because the `OM`-field approach itself
+> is still the plan.
+
 ## Context
 
 Each of the platform's two redundant 24V relay-cutoff channels is gated by three series enable
@@ -29,7 +39,48 @@ bottom of this document.
 
 ## Stage 1 — Minimal internal-timer firmware demo — **implemented, awaiting bench confirmation**
 
-Code: `firmware/timer_test/` (`OneShotTimer.h`/`.cpp` + `timer_test.ino`).
+Code: `firmware/timer_test/` (PlatformIO project; `include/OneShotTimer.h`, `src/OneShotTimer.cpp`,
+`src/main.cpp`).
+
+**Bench test #1 result:** Ch1 idle level read correctly (LOW), but Ch2 idle read LOW instead of
+the intended HIGH, and its "expiry" fired at the same millisecond as arming — a false positive.
+Attempted fix #1 (priming the output latch via the `FOn` Force-Output bit) was applied but not
+yet re-tested.
+
+**Bench test #2 result (on a scope, not just `digitalRead()`):** pin 31 sat permanently HIGH and
+pin 30 permanently LOW — never toggling at all. Two separate issues identified:
+1. `digitalRead()` may not be trustworthy once a pad is muxed away from GPIO's own ALT function —
+   confirmed against the RM's IOMUX chapter: the pad's `MUX_CTL` register has a `SION` (Software
+   Input On) bit (bit 4) specifically for this ("LoopBack" use case); it wasn't being set.
+2. More likely explanation for the scope result: `begin()` was switching the pad over to GPT1
+   control (with the channel's real Set/Clear mode already selected) *before* `arm()` ever wrote
+   a real compare value into `OCR2`/`OCR3`. If the output-compare action continuously reflects
+   "has the counter reached the compare register" rather than latching once at a discrete event,
+   an unprogrammed (near-zero) `OCR` reads as already-satisfied well before any real countdown,
+   so the pin snaps to its "matched" level almost immediately.
+
+**Fix applied, and Ch1 confirmed working** on bench test #3: `arm()` writes the real compare value
+first, then hands the pad to GPT1 (with `SION` set) right before enabling the counter — closing
+the window where an unprogrammed `OCR` could look already-matched. Ch1 (pin 31, Set mode) idles
+LOW and transitions to HIGH correctly on a scope. This also confirms the peripheral's output
+latch defaults LOW after reset — which is exactly why Ch1 (idle LOW) "just works" once the
+sequencing is right, while Ch2 (pin 30, Clear mode, wants idle HIGH) stayed permanently LOW:
+Clear's only action is to assert LOW, so nothing was ever driving the latch HIGH in the first
+place — it was never going to reach HIGH regardless of sequencing.
+
+**Bench test #4 result:** with the latch primed via `FOn` inside `arm()`, pin 30 started
+oscillating rapidly (~30µs period — one tick period at 32768 Hz) instead of holding a clean idle
+level. Cause: `arm()` runs per-channel, sequentially (`ch1.arm()` then `ch2.arm()` in the test
+sketch), and both channels share one `EN` bit — so by the time `ch2.arm()` ran its `Set → Force →
+Clear` priming dance, `ch1.arm()` had already set `EN=1` and started the shared counter. The
+priming was racing a live, ticking counter instead of a stopped one.
+
+**Fix applied (not yet bench-confirmed):** moved Ch2's priming from `arm()` into `begin()`, where
+`EN` is guaranteed still 0 for both channels (`begin()` always runs before either channel's
+`arm()` in the test sketch's `setup()`) — so the prime now happens on a fully stopped counter,
+with the pad still on plain GPIO (invisible to the outside) the whole time. `arm()` no longer
+touches `OM`/`FOn` at all; it only writes the real compare value and hands the pad to GPT1.
+Register-dump serial prints (`GPT1_CR/SR/CNT/OCR2/OCR3`) remain in place for further diagnosis.
 
 **Pins — confirmed against the i.MX RT1062 reference manual, not guessed.** Cross-referencing the
 RM's IOMUX tables against Teensyduino's `core_pins.h` shows GPT1_COMPARE2 is the only GPT signal

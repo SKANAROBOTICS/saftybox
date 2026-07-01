@@ -2,6 +2,12 @@
 
 > Pillar 1 of 3 · handle **Safe state** · [↑ overview](../README.md)
 
+> **Watchdog OK / Timer OK implementation — two candidate designs, not yet decided:**
+> Teensy-only (internal RTWDOG + GPT) vs. external supervisor chips (TPS3850 + PCA2131, as drawn
+> in the block diagram below). See [failsafe-design-options.md](failsafe-design-options.md) for
+> the explicit comparison — read that first before assuming which design a given piece of code or
+> schematic detail belongs to.
+
 ## Purpose
 Physically deliver or remove **24V relay control power** (≈ upto a couple of amps). The default, power-on, and
 fault state is **OFF**. This is in series to the key shortcut plug. 24V->Key Control Plug->SafetyBox-> key relay -> 48V key bus. 
@@ -41,7 +47,10 @@ motors during boot, brownout, or a glitch.
 - **Enforces:** the lease *ceiling* (value selected upstream).
 
 ## Open questions
-- Timer-chip family: analog-R (TPL5010), I²C (DS1374), or pin-strap (MAX6369)?
+- **Teensy-only vs external-supervisor-chip design for Watchdog OK / Timer OK** — see
+  [failsafe-design-options.md](failsafe-design-options.md). Superseded question: the earlier
+  timer-chip shortlist (analog-R TPL5010, I²C DS1374, pin-strap MAX6369) — the external-chip
+  design now specifically proposes PCA2131 instead; still open either way.
 - Formal (SIL/PL) vs informal high-integrity grade — drives part selection and process.
 - Specific relay (force-guided, rating, arc suppression) and connector/sealing for depth.
 
