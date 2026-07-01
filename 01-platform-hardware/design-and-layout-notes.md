@@ -40,4 +40,7 @@ ground unless actively held high. Both channels must conduct for the relays to e
 
 ## Test Points & Bring-up
 
+Timer OK bring-up (Teensy-internal-timer candidate, replacing/validating against the PCA2131 RTC
+shown in the block diagram) is tracked separately: [timer-ok-bringup-plan.md](timer-ok-bringup-plan.md).
+
 ## Open Questions
